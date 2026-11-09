@@ -1,0 +1,19 @@
+# {{ ansible_managed }}
+# Configuration lue par « kubeadm join ». Contient un jeton : supprimée après usage.
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: JoinConfiguration
+discovery:
+  bootstrapToken:
+    apiServerEndpoint: "{{ k8s_api_endpoint_name }}:{{ k8s_api_endpoint_port }}"
+    # Jeton d'amorçage : prouve à l'API server que ce nœud a le droit de rejoindre
+    token: "{{ kubeadm_join_token }}"
+    # Empreinte de la CA du cluster : prouve au nœud qu'il parle au vrai control plane
+    caCertHashes:
+      - "{{ kubeadm_join_ca_cert_hash }}"
+nodeRegistration:
+  name: {{ inventory_hostname }}
+  criSocket: {{ k8s_cri_socket }}
+  kubeletExtraArgs:
+    # Adresse annoncée par le kubelet : celle du réseau privé, pas celle du NAT
+    - name: node-ip
+      value: {{ ansible_host }}

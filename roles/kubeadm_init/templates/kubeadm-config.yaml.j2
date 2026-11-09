@@ -1,0 +1,45 @@
+---
+# {{ ansible_managed }}
+#
+# Configuration de création du cluster, lue une seule fois par « kubeadm init ».
+# La modifier après coup ne change pas le cluster existant.
+# Format : https://kubernetes.io/docs/reference/config-api/kubeadm-config.v1beta4/
+#
+# Le fichier COMMENCE par « --- » : kubeadm découpe le fichier en documents à
+# chaque ligne « --- », et un bloc de commentaires placé avant la première serait
+# lu comme un document à part entière, sans apiVersion ni kind (refusé).
+#
+# Réglages propres à CE nœud (le premier control plane)
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+localAPIEndpoint:
+  # Adresse où l'API server écoute et qu'il annonce : celle du réseau privé.
+  # Sans elle, kubeadm prendrait l'interface de la route par défaut (eth0, NAT).
+  advertiseAddress: {{ ansible_host }}
+  bindPort: {{ k8s_api_endpoint_port }}
+nodeRegistration:
+  name: {{ inventory_hostname }}
+  criSocket: {{ k8s_cri_socket }}
+  kubeletExtraArgs:
+    # Adresse que le kubelet annonce pour ce nœud (même raison)
+    - name: node-ip
+      value: {{ ansible_host }}
+---
+# Réglages communs à tout le cluster
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+clusterName: {{ k8s_cluster_name }}
+# Version exacte du kubeadm installé (sinon kubeadm interroge Internet pour la
+# dernière version publiée)
+kubernetesVersion: {{ kubeadm_init_version.stdout }}
+# Point d'entrée de l'API server pour les nœuds et les clients : un nom, pas une IP
+controlPlaneEndpoint: "{{ k8s_api_endpoint_name }}:{{ k8s_api_endpoint_port }}"
+networking:
+  podSubnet: {{ k8s_pod_network_cidr }}
+  serviceSubnet: {{ k8s_service_cidr }}
+---
+# Configuration du kubelet, distribuée à tous les nœuds du cluster
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+# Même gestionnaire de cgroups que containerd (SystemdCgroup = true)
+cgroupDriver: systemd

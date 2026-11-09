@@ -1,0 +1,80 @@
+---
+# {{ ansible_managed }}
+#
+# Configuration de la Gateway du lab, appliquée de façon déclarative à chaque
+# passage : toute modification de ce modèle est répercutée dans le cluster.
+#
+# La classe : « les Gateways de cette classe sont mises en œuvre par Envoy Gateway ».
+# Objet sans namespace, comme une StorageClass pour les volumes.
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: {{ envoy_gateway_class_name }}
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+---
+# Réglages propres à Envoy Gateway pour les proxys de cette Gateway : ce que la
+# Gateway API, commune à toutes les implémentations, ne prévoit pas.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: {{ envoy_gateway_name }}
+  namespace: {{ envoy_gateway_namespace }}
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyDeployment:
+        replicas: {{ envoy_gateway_proxy_replicas }}
+        pod:
+          # Une copie par worker, si possible
+          topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: ScheduleAnyway
+              labelSelector:
+                matchLabels:
+                  gateway.envoyproxy.io/owning-gateway-name: {{ envoy_gateway_name }}
+                  gateway.envoyproxy.io/owning-gateway-namespace: {{ envoy_gateway_namespace }}
+        container:
+          # Valeur par défaut : 512 Mio réservés par copie, une taille de production.
+          # Quelques dizaines de Mio suffisent pour les quelques routes du lab.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+      envoyService:
+        # L'adresse externe demandée à MetalLB, la même à chaque reconstruction
+        annotations:
+          metallb.io/loadBalancerIPs: "{{ k8s_gateway_address }}"
+---
+# La Gateway : le point d'entrée HTTP du cluster, partagé par toutes les applications.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ envoy_gateway_name }}
+  namespace: {{ envoy_gateway_namespace }}
+spec:
+  gatewayClassName: {{ envoy_gateway_class_name }}
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: {{ envoy_gateway_name }}
+  listeners:
+    # Un « écouteur » : HTTP sur le port 80, pour tous les noms du domaine du lab
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: "*.{{ k8s_apps_domain }}"
+      allowedRoutes:
+        kinds:
+          - kind: HTTPRoute
+        # Seuls les namespaces qui portent l'étiquette d'accès peuvent publier des routes
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              {{ envoy_gateway_access_label }}: "true"

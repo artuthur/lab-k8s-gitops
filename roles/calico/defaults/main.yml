@@ -1,0 +1,27 @@
+---
+# Version de Calico : 3.33 est testée sur Kubernetes 1.35, 1.36 et 1.37.
+# Changer de version, c'est changer AUSSI les empreintes ci-dessous (et suivre la
+# procédure de mise à jour de Calico : ce rôle n'installe qu'une fois).
+calico_version: v3.33.0
+calico_manifests_url: "https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests"
+
+# Manifestes officiels, dans l'ordre d'installation, avec leur empreinte SHA-256
+# (calculée sur les fichiers publiés pour la version ci-dessus).
+#   v3_projectcalico_org.yaml : définitions des ressources de Calico (CRD), version
+#                               pour Kubernetes 1.36 et plus
+#   tigera-operator.yaml      : l'opérateur, qui installe et maintient Calico
+calico_manifests:
+  - name: v3_projectcalico_org.yaml
+    checksum: sha256:5306c2c6d9fd6762d804f9da51c049b8269c33498a364c5df0eed555aba026bd
+  - name: tigera-operator.yaml
+    checksum: sha256:aef423b36aef8cf86567f92bbe5eea4b4ca105a6fc7dbf43de599c6fa70388ba
+
+# Dossier des manifestes sur le control plane
+calico_manifests_dir: /etc/kubernetes/addons/calico
+
+# Kubeconfig utilisé par kubectl sur le control plane
+calico_kubeconfig: /etc/kubernetes/admin.conf
+
+# Pool d'adresses des pods (sa plage est k8s_pod_network_cidr, la même que kubeadm)
+calico_block_size: 26
+calico_encapsulation: VXLANCrossSubnet

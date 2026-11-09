@@ -1,0 +1,19 @@
+# Service de type ClusterIP : il reçoit une adresse interne
+# (ClusterIP) et un port ouvert sur chaque nœud (NodePort). L'accès depuis l'extérieur passe par la Gateway du cluster,
+# à laquelle la route de 04-httproute.yaml confie le nom whoami.lab.internal.
+apiVersion: v1
+kind: Service
+metadata:
+  name: whoami
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: whoami
+    app.kubernetes.io/part-of: lab-k8s-gitops
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: whoami
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

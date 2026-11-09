@@ -1,0 +1,62 @@
+---
+# Ajout des workers au cluster.
+# Référence : https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-join/
+
+# kubelet.conf n'existe que sur un nœud déjà membre du cluster.
+- name: Vérifier si le nœud a déjà rejoint le cluster
+  ansible.builtin.stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: kubeadm_join_kubelet_conf
+
+- name: Noter si le nœud doit rejoindre le cluster
+  ansible.builtin.set_fact:
+    kubeadm_join_needed: "{{ not kubeadm_join_kubelet_conf.stat.exists }}"
+
+# Un seul jeton pour tous les workers à ajouter, créé sur le control plane
+# (delegate_to) et une seule fois (run_once), seulement s'il y a au moins un
+# worker à ajouter : aucun jeton n'est créé quand le cluster est complet.
+# La condition porte sur TOUS les hôtes du play (ansible_play_hosts) : avec
+# run_once, elle n'est évaluée que pour le premier hôte.
+- name: Créer un jeton d'amorçage sur le control plane
+  ansible.builtin.command: >-
+    kubeadm token create --ttl {{ kubeadm_join_token_ttl }} --print-join-command
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  run_once: true
+  register: kubeadm_join_command
+  changed_when: true
+  when: >-
+    ansible_play_hosts | map('extract', hostvars, 'kubeadm_join_needed')
+    | map('bool') | select | list | length > 0
+  no_log: false
+
+- name: Rejoindre le cluster
+  when: kubeadm_join_needed | bool
+  block:
+    # Sortie de --print-join-command :
+    # kubeadm join k8s-api:6443 --token <jeton> --discovery-token-ca-cert-hash sha256:<empreinte>
+    - name: Extraire le jeton et l'empreinte de la CA
+      ansible.builtin.set_fact:
+        kubeadm_join_token: "{{ kubeadm_join_command.stdout | regex_search('--token\\s+(\\S+)', '\\1') | first }}"
+        kubeadm_join_ca_cert_hash: "{{ kubeadm_join_command.stdout | regex_search('--discovery-token-ca-cert-hash\\s+(\\S+)', '\\1') | first }}"
+      no_log: true
+
+    - name: Déployer la configuration de kubeadm join
+      ansible.builtin.template:
+        src: kubeadm-join.yaml.j2
+        dest: "{{ kubeadm_join_config_path }}"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+    - name: Ajouter le nœud au cluster (kubeadm join)
+      ansible.builtin.command: kubeadm join --config {{ kubeadm_join_config_path }}
+      args:
+        creates: /etc/kubernetes/kubelet.conf
+
+  # Exécuté même si le join échoue : le jeton ne reste pas sur le disque.
+  always:
+    - name: Supprimer la configuration de kubeadm join
+      ansible.builtin.file:
+        path: "{{ kubeadm_join_config_path }}"
+        state: absent

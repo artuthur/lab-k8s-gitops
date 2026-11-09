@@ -1,0 +1,87 @@
+---
+# Adresses externes des Services LoadBalancer : MetalLB, en mode L2.
+# Référence : https://metallb.io/installation/
+
+- name: Créer le dossier des manifestes de MetalLB
+  ansible.builtin.file:
+    path: "{{ metallb_manifests_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Télécharger le manifeste de MetalLB
+  ansible.builtin.get_url:
+    url: "{{ metallb_manifest_url }}"
+    dest: "{{ metallb_manifests_dir }}/metallb-native.yaml"
+    checksum: "{{ metallb_manifest_checksum }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Déployer la configuration de MetalLB
+  ansible.builtin.template:
+    src: metallb-config.yaml.j2
+    dest: "{{ metallb_manifests_dir }}/metallb-config.yaml"
+    owner: root
+    group: root
+    mode: "0644"
+
+# --- Installation : une seule fois ----------------------------------------------
+# Le contrôleur de MetalLB modifie lui-même certains objets du manifeste (il y
+# inscrit le certificat de ses webhooks). Les réappliquer à chaque passage
+# effacerait ces ajouts : même logique que pour l'opérateur de Calico.
+
+- name: Vérifier si MetalLB est installé
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ metallb_kubeconfig }}
+    get deployment controller -n metallb-system --ignore-not-found -o name
+  register: metallb_present
+  changed_when: false
+  check_mode: false
+
+- name: Installer MetalLB
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ metallb_kubeconfig }}
+    apply --server-side -f {{ metallb_manifests_dir }}/metallb-native.yaml
+  when: metallb_present.stdout | length == 0
+  changed_when: true
+
+# controller : attribue les adresses, et sert les webhooks qui valident la configuration
+# speaker    : DaemonSet, un par nœud ; annonce les adresses sur le réseau
+- name: Attendre que le contrôleur de MetalLB soit prêt
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ metallb_kubeconfig }}
+    -n metallb-system rollout status deployment/controller --timeout=300s
+  changed_when: false
+
+- name: Attendre que les speakers de MetalLB soient prêts
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ metallb_kubeconfig }}
+    -n metallb-system rollout status daemonset/speaker --timeout=300s
+  changed_when: false
+
+# --- Configuration : déclarative, à chaque passage -------------------------------
+# Ces objets n'appartiennent qu'à nous : on compare ce qui est décrit à ce qui
+# existe (kubectl diff), et on n'applique que s'il y a une différence.
+# Codes de retour de kubectl diff : 0 = identique, 1 = différences, >1 = erreur.
+# Juste après l'installation, le webhook qui valide ces objets peut ne pas encore
+# répondre (erreur, code > 1) : on réessaie.
+- name: Comparer la configuration de MetalLB à celle du cluster
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ metallb_kubeconfig }}
+    diff --server-side -f {{ metallb_manifests_dir }}/metallb-config.yaml
+  register: metallb_config_diff
+  until: metallb_config_diff.rc in [0, 1]
+  retries: 12
+  delay: 10
+  changed_when: false
+  failed_when: metallb_config_diff.rc > 1
+  check_mode: false
+
+- name: Appliquer la configuration de MetalLB
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ metallb_kubeconfig }}
+    apply --server-side -f {{ metallb_manifests_dir }}/metallb-config.yaml
+  when: metallb_config_diff.rc == 1
+  changed_when: true

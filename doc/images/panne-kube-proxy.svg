@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="480" viewBox="0 0 680 480" role="img" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <title>La panne du 04/11/2026 : une réaction en chaîne</title>
+  <desc>kubeadm init est lancé alors que k8s-api manque dans /etc/hosts. Le pod kube-proxy du control plane reçoit une copie de ce fichier, ne trouve pas l'API server et n'écrit aucune règle pour les Services. calico-node ne joint donc pas l'adresse 10.96.0.1 et échoue à l'initialisation. Sans routes vers les pods, l'API server ne joint pas les webhooks de Calico, et l'opérateur reste bloqué. La correction consiste à recréer le pod kube-proxy, qui reçoit une copie à jour.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#5F5E5A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arrow-teal" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#0F6E56" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="680" height="480" rx="12" fill="#FFFFFF"/>
+
+  <g font-size="14">
+    <rect x="30" y="20" width="400" height="56" rx="8" fill="#FAECE7" stroke="#993C1D" stroke-width="0.5"/>
+    <text x="230" y="42" text-anchor="middle" font-weight="500" fill="#712B13">kubeadm init sans k8s-api dans /etc/hosts</text>
+    <text x="230" y="61" text-anchor="middle" font-size="12" fill="#993C1D">la ligne du rôle k8s_prereqs n'avait pas été reportée</text>
+
+    <rect x="30" y="98" width="400" height="56" rx="8" fill="#FAECE7" stroke="#993C1D" stroke-width="0.5"/>
+    <text x="230" y="120" text-anchor="middle" font-weight="500" fill="#712B13">kube-proxy reçoit une copie de /etc/hosts</text>
+    <text x="230" y="139" text-anchor="middle" font-size="12" fill="#993C1D">faite une seule fois, à la création du pod</text>
+
+    <rect x="30" y="176" width="400" height="56" rx="8" fill="#FAECE7" stroke="#993C1D" stroke-width="0.5"/>
+    <text x="230" y="198" text-anchor="middle" font-weight="500" fill="#712B13">kube-proxy ne trouve pas l'API server</text>
+    <text x="230" y="217" text-anchor="middle" font-size="12" fill="#993C1D">aucune règle pour les Services sur le control plane</text>
+
+    <rect x="30" y="254" width="400" height="56" rx="8" fill="#FAECE7" stroke="#993C1D" stroke-width="0.5"/>
+    <text x="230" y="276" text-anchor="middle" font-weight="500" fill="#712B13">calico-node ne joint pas 10.96.0.1</text>
+    <text x="230" y="295" text-anchor="middle" font-size="12" fill="#993C1D">install-cni échoue en boucle : pas de CNI sur ce nœud</text>
+
+    <rect x="30" y="332" width="400" height="56" rx="8" fill="#FAECE7" stroke="#993C1D" stroke-width="0.5"/>
+    <text x="230" y="354" text-anchor="middle" font-weight="500" fill="#712B13">Pas de route vers les pods depuis le control plane</text>
+    <text x="230" y="373" text-anchor="middle" font-size="12" fill="#993C1D">l'API server ne joint pas les webhooks de Calico</text>
+
+    <rect x="30" y="410" width="400" height="56" rx="8" fill="#FAECE7" stroke="#993C1D" stroke-width="0.5"/>
+    <text x="230" y="432" text-anchor="middle" font-weight="500" fill="#712B13">L'opérateur reste bloqué</text>
+    <text x="230" y="451" text-anchor="middle" font-size="12" fill="#993C1D">la tâche d'attente d'Ansible expire</text>
+
+    <rect x="465" y="91" width="185" height="70" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+    <text x="557" y="113" text-anchor="middle" font-weight="500" fill="#085041">Correction</text>
+    <text x="557" y="132" text-anchor="middle" font-size="12" fill="#0F6E56">recréer le pod kube-proxy</text>
+    <text x="557" y="149" text-anchor="middle" font-size="12" fill="#0F6E56">copie à jour du fichier</text>
+  </g>
+
+  <g stroke="#5F5E5A" stroke-width="1.5">
+    <line x1="230" y1="76" x2="230" y2="96" marker-end="url(#arrow)"/>
+    <line x1="230" y1="154" x2="230" y2="174" marker-end="url(#arrow)"/>
+    <line x1="230" y1="232" x2="230" y2="252" marker-end="url(#arrow)"/>
+    <line x1="230" y1="310" x2="230" y2="330" marker-end="url(#arrow)"/>
+    <line x1="230" y1="388" x2="230" y2="408" marker-end="url(#arrow)"/>
+  </g>
+  <line x1="465" y1="126" x2="432" y2="126" stroke="#0F6E56" stroke-width="1.5" marker-end="url(#arrow-teal)"/>
+</svg>

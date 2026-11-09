@@ -1,0 +1,76 @@
+---
+# Contrôle du résultat, et non des actions : chaque nœud de l'inventaire est-il
+# enregistré dans le cluster, prêt, et joint par l'adresse du réseau privé, aussi
+# bien par Kubernetes que par Calico ?
+
+- name: Lire les nœuds enregistrés dans le cluster
+  ansible.builtin.command: >-
+    kubectl --kubeconfig /etc/kubernetes/admin.conf get nodes -o json
+  register: cluster_verify_nodes_raw
+  changed_when: false
+  check_mode: false
+
+- name: Extraire la liste des nœuds
+  ansible.builtin.set_fact:
+    cluster_verify_nodes: "{{ (cluster_verify_nodes_raw.stdout | from_json)['items'] }}"
+
+- name: Vérifier que chaque nœud de l'inventaire est enregistré
+  ansible.builtin.assert:
+    that:
+      - groups['k8s_cluster'] | difference(cluster_verify_nodes | map(attribute='metadata.name')) | length == 0
+    fail_msg: >-
+      Nœuds absents du cluster :
+      {{ groups['k8s_cluster'] | difference(cluster_verify_nodes | map(attribute='metadata.name')) | join(', ') }}
+    success_msg: Les {{ groups['k8s_cluster'] | length }} nœuds de l'inventaire sont enregistrés.
+
+# InternalIP = adresse annoncée par le kubelet (paramètre node-ip). Elle doit être
+# celle de l'inventaire, sur le réseau privé, et non celle du NAT de Vagrant.
+- name: Vérifier l'adresse annoncée par chaque nœud
+  ansible.builtin.assert:
+    that:
+      - cluster_verify_internal_ip == hostvars[item.metadata.name]['ansible_host']
+    fail_msg: >-
+      {{ item.metadata.name }} annonce {{ cluster_verify_internal_ip }} au lieu de
+      {{ hostvars[item.metadata.name]['ansible_host'] }}.
+    success_msg: "{{ item.metadata.name }} annonce {{ cluster_verify_internal_ip }}."
+  vars:
+    cluster_verify_internal_ip: >-
+      {{ item.status.addresses | selectattr('type', 'equalto', 'InternalIP')
+         | map(attribute='address') | first }}
+  loop: "{{ cluster_verify_nodes }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+# Ready = le kubelet est en bonne santé ET le réseau des pods (CNI) est en place.
+- name: Vérifier que chaque nœud est prêt
+  ansible.builtin.assert:
+    that:
+      - cluster_verify_ready == 'True'
+    fail_msg: "{{ item.metadata.name }} n'est pas prêt (condition Ready : {{ cluster_verify_ready }})."
+    success_msg: "{{ item.metadata.name }} est prêt."
+  vars:
+    cluster_verify_ready: >-
+      {{ item.status.conditions | selectattr('type', 'equalto', 'Ready')
+         | map(attribute='status') | first }}
+  loop: "{{ cluster_verify_nodes }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+# Calico enregistre l'adresse qu'il a retenue pour chaque nœud dans l'annotation
+# projectcalico.org/IPv4Address (sous la forme adresse/masque). Elle doit être
+# celle du réseau privé : c'est par elle que passent les routes entre pods.
+- name: Vérifier l'adresse retenue par Calico pour chaque nœud
+  ansible.builtin.assert:
+    that:
+      - cluster_verify_calico_ip == hostvars[item.metadata.name]['ansible_host']
+    fail_msg: >-
+      Calico utilise {{ cluster_verify_calico_ip or 'aucune adresse' }} pour
+      {{ item.metadata.name }} au lieu de {{ hostvars[item.metadata.name]['ansible_host'] }}.
+    success_msg: "Calico joint {{ item.metadata.name }} par {{ cluster_verify_calico_ip }}."
+  vars:
+    cluster_verify_calico_ip: >-
+      {{ (item.metadata.annotations | default({}))['projectcalico.org/IPv4Address']
+         | default('') | split('/') | first }}
+  loop: "{{ cluster_verify_nodes }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"

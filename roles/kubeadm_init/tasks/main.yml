@@ -1,0 +1,59 @@
+---
+# Création du cluster sur le premier control plane.
+# Référence : https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/
+
+- name: Lire la version de kubeadm installée
+  ansible.builtin.command: kubeadm version -o short
+  register: kubeadm_init_version
+  changed_when: false
+  check_mode: false
+
+- name: Déployer la configuration de kubeadm
+  ansible.builtin.template:
+    src: kubeadm-config.yaml.j2
+    dest: "{{ kubeadm_init_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+# Ne s'exécute que si le cluster n'existe pas encore : admin.conf est l'un des
+# derniers fichiers écrits par kubeadm init.
+# En cas d'échec en cours de route, remettre le nœud à zéro avec
+# « sudo kubeadm reset -f » avant de relancer le playbook.
+- name: Créer le cluster (kubeadm init)
+  ansible.builtin.command: kubeadm init --config {{ kubeadm_init_config_path }}
+  args:
+    creates: /etc/kubernetes/admin.conf
+
+# --- Kubeconfig administrateur vers le poste de contrôle ------------------------
+
+- name: Lire le kubeconfig administrateur
+  ansible.builtin.slurp:
+    src: /etc/kubernetes/admin.conf
+  register: kubeadm_init_admin_conf
+  no_log: true
+
+# Tâches exécutées sur WSL2 (delegate_to: localhost). become: false, sinon Ansible
+# tenterait un sudo sur le poste de contrôle, hérité du play.
+- name: Créer le dossier ~/.kube sur le poste de contrôle
+  ansible.builtin.file:
+    path: "{{ kubeadm_init_local_kubeconfig | dirname }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+
+# Le poste de contrôle ne connaît pas le nom k8s-api (absent de son /etc/hosts) :
+# sa copie vise directement l'IP du control plane, qui figure aussi dans le
+# certificat de l'API server.
+- name: Écrire le kubeconfig sur le poste de contrôle
+  ansible.builtin.copy:
+    content: >-
+      {{ kubeadm_init_admin_conf.content | b64decode
+         | replace('https://' ~ k8s_api_endpoint_name ~ ':',
+                   'https://' ~ k8s_api_endpoint_ip ~ ':') }}
+    dest: "{{ kubeadm_init_local_kubeconfig }}"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  no_log: true

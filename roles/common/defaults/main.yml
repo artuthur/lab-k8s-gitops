@@ -1,0 +1,14 @@
+---
+common_admin_user: sysadmin
+common_admin_group: sysadmins
+
+# Chemin, sur le nœud de contrôle (WSL2), vers la clé publique SSH à déployer
+# sur le compte admin (même clé que les projets précédents du portfolio).
+#   ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_lab -C "lab"
+common_admin_pubkey_path: "~/.ssh/id_ed25519_lab.pub"
+
+common_timezone: "Europe/Paris"
+
+# Pare-feu local UFW. Activé par défaut ; désactivé pour les nœuds Kubernetes
+# dans inventory/group_vars/k8s_cluster.yml (justification dans ce fichier).
+common_firewall_enabled: true

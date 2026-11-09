@@ -1,0 +1,41 @@
+---
+# {{ ansible_managed }}
+#
+# Configuration de Calico, lue par l'opérateur Tigera. Reprise du fichier
+# custom-resources.yaml publié avec Calico {{ calico_version }}, adaptée au lab.
+# Appliquée une seule fois : l'opérateur complète ensuite lui-même la ressource
+# Installation avec ses valeurs par défaut.
+apiVersion: operator.tigera.io/v1
+kind: Installation
+metadata:
+  name: default
+spec:
+  calicoNetwork:
+    # Data plane iptables, comme kube-proxy (installé par kubeadm)
+    linuxDataplane: Iptables
+    # Adresse de chaque nœud pour Calico : celle que son kubelet annonce (node-ip,
+    # réseau privé). Par défaut, Calico prendrait la première interface trouvée,
+    # eth0, celle du NAT de Vagrant.
+    nodeAddressAutodetectionV4:
+      kubernetes: NodeInternalIP
+    ipPools:
+      - name: default-ipv4-ippool
+        # La même plage que le podSubnet donné à kubeadm
+        cidr: {{ k8s_pod_network_cidr }}
+        # Blocs de 2^(32-{{ calico_block_size }}) adresses, réservés à la demande par chaque nœud
+        blockSize: {{ calico_block_size }}
+        # Encapsulation VXLAN seulement entre nœuds de sous-réseaux différents.
+        # Nos nœuds partagent {{ k8s_node_network_cidr }} : le trafic entre pods y est
+        # simplement routé, sans encapsulation.
+        encapsulation: {{ calico_encapsulation }}
+        # Un pod qui sort du cluster (vers Internet) prend l'adresse de son nœud
+        natOutgoing: Enabled
+        nodeSelector: all()
+---
+# Composant de validation des ressources de Calico (politiques réseau, pools
+# d'adresses) avant leur enregistrement dans le cluster.
+apiVersion: operator.tigera.io/v1
+kind: APIServer
+metadata:
+  name: default
+spec: {}

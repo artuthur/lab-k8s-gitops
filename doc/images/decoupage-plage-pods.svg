@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="350" viewBox="0 0 680 350" role="img" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <title>Deux façons de découper la plage des pods</title>
+  <desc>En haut, Kubernetes attribue à chaque nœud un /24 fixe, dans l'ordre d'enregistrement ; Calico ne s'en sert pas. En bas, les blocs /26 de 64 adresses réellement réservés par Calico dans le lab : 10.244.184.64/26 pour k8s-cp-01, 10.244.36.192/26 pour k8s-worker-01, 10.244.118.64/26 pour k8s-worker-02. Un nouveau nœud recevrait un bloc libre à son premier pod.</desc>
+  <rect x="0" y="0" width="680" height="350" rx="12" fill="#FFFFFF"/>
+
+  <text x="40" y="38" font-size="14" font-weight="500" fill="#444441">Kubernetes : un /24 fixe par nœud, attribué à l'enregistrement</text>
+  <rect x="40" y="52" width="180" height="50" rx="6" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+  <text x="130" y="73" text-anchor="middle" font-size="14" font-weight="500" fill="#444441">1er nœud enregistré</text>
+  <text x="130" y="92" text-anchor="middle" font-size="12" fill="#5F5E5A">10.244.0.0/24</text>
+  <rect x="250" y="52" width="180" height="50" rx="6" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+  <text x="340" y="73" text-anchor="middle" font-size="14" font-weight="500" fill="#444441">2e nœud enregistré</text>
+  <text x="340" y="92" text-anchor="middle" font-size="12" fill="#5F5E5A">10.244.1.0/24</text>
+  <rect x="460" y="52" width="180" height="50" rx="6" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+  <text x="550" y="73" text-anchor="middle" font-size="14" font-weight="500" fill="#444441">3e nœud enregistré</text>
+  <text x="550" y="92" text-anchor="middle" font-size="12" fill="#5F5E5A">10.244.2.0/24</text>
+  <text x="340" y="126" text-anchor="middle" font-size="12" fill="#5F5E5A">Champ node.spec.podCIDR de chaque nœud : présent, mais ignoré par Calico</text>
+
+  <text x="40" y="172" font-size="14" font-weight="500" fill="#444441">Calico : des blocs /26 (64 adresses) réservés à la demande (relevé du lab)</text>
+  <rect x="40" y="186" width="140" height="56" rx="6" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+  <text x="110" y="208" text-anchor="middle" font-size="14" font-weight="500" fill="#085041">k8s-cp-01</text>
+  <text x="110" y="227" text-anchor="middle" font-size="12" fill="#0F6E56">10.244.184.64/26</text>
+  <rect x="192" y="186" width="140" height="56" rx="6" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+  <text x="262" y="208" text-anchor="middle" font-size="14" font-weight="500" fill="#085041">k8s-worker-01</text>
+  <text x="262" y="227" text-anchor="middle" font-size="12" fill="#0F6E56">10.244.36.192/26</text>
+  <rect x="344" y="186" width="140" height="56" rx="6" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+  <text x="414" y="208" text-anchor="middle" font-size="14" font-weight="500" fill="#085041">k8s-worker-02</text>
+  <text x="414" y="227" text-anchor="middle" font-size="12" fill="#0F6E56">10.244.118.64/26</text>
+  <rect x="496" y="186" width="144" height="56" rx="6" fill="#FAEEDA" stroke="#854F0B" stroke-width="1" stroke-dasharray="4 3"/>
+  <text x="568" y="208" text-anchor="middle" font-size="14" font-weight="500" fill="#633806">Nouveau nœud</text>
+  <text x="568" y="227" text-anchor="middle" font-size="12" fill="#854F0B">un bloc libre</text>
+
+  <text x="340" y="276" text-anchor="middle" font-size="12" fill="#444441">Le pool 10.244.0.0/16 contient 1 024 blocs. Ils ne se suivent pas : Calico les choisit librement dans le pool.</text>
+  <text x="340" y="298" text-anchor="middle" font-size="12" fill="#444441">Un nœud qui remplit son bloc en réserve un second. Un nœud supprimé rend ses blocs au pool.</text>
+  <text x="340" y="320" text-anchor="middle" font-size="12" fill="#444441">Le nouveau nœud reçoit son bloc au moment où son premier pod a besoin d'une adresse.</text>
+</svg>

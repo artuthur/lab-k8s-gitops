@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="440" viewBox="0 0 680 440" role="img" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <title>Comment un worker rejoint le cluster, et son analogie avec l'accueil d'une entreprise</title>
+  <desc>À gauche, les quatre étapes de kubeadm join : vérifier la CA du cluster, présenter le jeton d'amorçage, obtenir son certificat, s'enregistrer comme nœud. À droite, leur équivalent à l'accueil d'une entreprise : vérifier l'adresse, montrer sa convocation, recevoir son badge nominatif, être inscrit dans l'annuaire.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#5F5E5A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="680" height="440" rx="12" fill="#FFFFFF"/>
+
+  <text x="170" y="40" text-anchor="middle" font-size="14" font-weight="500" fill="#444441">kubeadm join</text>
+  <text x="510" y="40" text-anchor="middle" font-size="14" font-weight="500" fill="#444441">À l'accueil d'une entreprise</text>
+
+  <rect x="30" y="60" width="280" height="56" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+  <text x="170" y="82" text-anchor="middle" font-size="14" font-weight="500" fill="#633806">Vérifier la CA du cluster</text>
+  <text x="170" y="102" text-anchor="middle" font-size="12" fill="#854F0B">empreinte comparée à caCertHashes</text>
+
+  <rect x="30" y="146" width="280" height="56" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+  <text x="170" y="168" text-anchor="middle" font-size="14" font-weight="500" fill="#633806">Présenter le jeton d'amorçage</text>
+  <text x="170" y="188" text-anchor="middle" font-size="12" fill="#854F0B">valable 30 min, une seule permission</text>
+
+  <rect x="30" y="232" width="280" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+  <text x="170" y="254" text-anchor="middle" font-size="14" font-weight="500" fill="#085041">Obtenir son certificat</text>
+  <text x="170" y="274" text-anchor="middle" font-size="12" fill="#0F6E56">demandé par le kubelet, signé par la CA</text>
+
+  <rect x="30" y="318" width="280" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+  <text x="170" y="340" text-anchor="middle" font-size="14" font-weight="500" fill="#085041">S'enregistrer comme nœud</text>
+  <text x="170" y="360" text-anchor="middle" font-size="12" fill="#0F6E56">avec node-ip, visible dans kubectl</text>
+
+  <rect x="370" y="60" width="280" height="56" rx="8" fill="#FFFFFF" stroke="#5F5E5A" stroke-width="0.5"/>
+  <text x="510" y="82" text-anchor="middle" font-size="14" font-weight="500" fill="#444441">Vérifier l'adresse de l'entreprise</text>
+  <text x="510" y="102" text-anchor="middle" font-size="12" fill="#5F5E5A">avant de donner ses papiers</text>
+
+  <rect x="370" y="146" width="280" height="56" rx="8" fill="#FFFFFF" stroke="#5F5E5A" stroke-width="0.5"/>
+  <text x="510" y="168" text-anchor="middle" font-size="14" font-weight="500" fill="#444441">Montrer sa convocation</text>
+  <text x="510" y="188" text-anchor="middle" font-size="12" fill="#5F5E5A">elle n'ouvre que le bureau des badges</text>
+
+  <rect x="370" y="232" width="280" height="56" rx="8" fill="#FFFFFF" stroke="#5F5E5A" stroke-width="0.5"/>
+  <text x="510" y="254" text-anchor="middle" font-size="14" font-weight="500" fill="#444441">Recevoir son badge nominatif</text>
+  <text x="510" y="274" text-anchor="middle" font-size="12" fill="#5F5E5A">pour les accès de tous les jours</text>
+
+  <rect x="370" y="318" width="280" height="56" rx="8" fill="#FFFFFF" stroke="#5F5E5A" stroke-width="0.5"/>
+  <text x="510" y="340" text-anchor="middle" font-size="14" font-weight="500" fill="#444441">Être inscrit dans l'annuaire</text>
+  <text x="510" y="360" text-anchor="middle" font-size="12" fill="#5F5E5A">avec son numéro de poste</text>
+
+  <g stroke="#5F5E5A" stroke-width="1.5">
+    <line x1="170" y1="116" x2="170" y2="144" marker-end="url(#arrow)"/>
+    <line x1="170" y1="202" x2="170" y2="230" marker-end="url(#arrow)"/>
+    <line x1="170" y1="288" x2="170" y2="316" marker-end="url(#arrow)"/>
+  </g>
+  <g stroke="#B4B2A9" stroke-width="0.5" stroke-dasharray="4 4">
+    <line x1="310" y1="88" x2="370" y2="88"/>
+    <line x1="310" y1="174" x2="370" y2="174"/>
+    <line x1="310" y1="260" x2="370" y2="260"/>
+    <line x1="310" y1="346" x2="370" y2="346"/>
+  </g>
+
+  <rect x="30" y="402" width="14" height="14" rx="3" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+  <text x="52" y="413" font-size="12" fill="#444441">Amorçage : éléments temporaires</text>
+  <rect x="300" y="402" width="14" height="14" rx="3" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+  <text x="322" y="413" font-size="12" fill="#444441">Identité durable du nœud</text>
+</svg>

@@ -1,0 +1,88 @@
+---
+- name: Mettre à jour le cache apt
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Installer les paquets de base
+  ansible.builtin.apt:
+    name:
+      - sudo
+      - unattended-upgrades
+      - chrony
+      - curl
+      - vim
+      - acl
+    state: present
+
+- name: Créer le groupe admin dédié
+  ansible.builtin.group:
+    name: "{{ common_admin_group }}"
+    state: present
+
+- name: Créer l'utilisateur admin dédié
+  ansible.builtin.user:
+    name: "{{ common_admin_user }}"
+    groups: "{{ common_admin_group }}"
+    shell: /bin/bash
+    create_home: true
+    state: present
+
+- name: Autoriser le sudo sans mot de passe pour le groupe admin
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/{{ common_admin_group }}"
+    content: "%{{ common_admin_group }} ALL=(ALL) NOPASSWD:ALL\n"
+    mode: "0440"
+    validate: "visudo -cf %s"
+
+- name: Déployer la clé publique SSH de l'admin
+  ansible.posix.authorized_key:
+    user: "{{ common_admin_user }}"
+    key: "{{ lookup('file', common_admin_pubkey_path) }}"
+    state: present
+
+- name: "Durcir SSH : désactiver l'authentification par mot de passe"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PasswordAuthentication'
+    line: 'PasswordAuthentication no'
+  notify: Redémarrer SSH
+
+- name: "Durcir SSH : désactiver la connexion root directe"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitRootLogin'
+    line: 'PermitRootLogin no'
+  notify: Redémarrer SSH
+
+- name: Activer les mises à jour de sécurité automatiques
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+    mode: "0644"
+
+- name: Définir le fuseau horaire
+  community.general.timezone:
+    name: "{{ common_timezone }}"
+
+- name: Configurer le pare-feu UFW
+  when: common_firewall_enabled | bool
+  block:
+    - name: Installer UFW
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+
+    - name: Autoriser SSH entrant
+      community.general.ufw:
+        rule: allow
+        port: "22"
+        proto: tcp
+
+    - name: Activer UFW avec une politique entrante restrictive
+      community.general.ufw:
+        state: enabled
+        policy: deny
+        direction: incoming

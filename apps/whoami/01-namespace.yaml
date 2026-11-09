@@ -1,0 +1,18 @@
+# Application de démonstration : un namespace qui lui est propre.
+#
+# Pod Security Admission, niveau « restricted » : Kubernetes refuse tout pod de ce
+# namespace qui ne respecte pas les bonnes pratiques de sécurité (exécution sans
+# root, aucun privilège supplémentaire, capacités Linux retirées, profil seccomp).
+#
+# Le label lab.internal/gateway-access: "true" permet à la Gateway du cluster d'accepter
+# les requêtes HTTP vers les services de ce namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+  labels:
+    app.kubernetes.io/part-of: lab-k8s-gitops
+    lab.internal/gateway-access: "true"
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

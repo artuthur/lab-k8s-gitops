@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="470" viewBox="0 0 680 470" role="img" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <title>Le chemin d'une requête à travers la Gateway</title>
+  <desc>Cinq étapes : la résolution du nom whoami.lab.internal en 192.168.58.50 ; la réponse ARP de MetalLB depuis un nœud qui héberge un proxy Envoy, ici k8s-worker-02 ; kube-proxy, en politique Local, qui remet le paquet à l'Envoy de ce nœud sans changer l'adresse du client ; Envoy, qui lit l'en-tête Host, trouve l'HTTPRoute whoami, choisit un pod et ajoute X-Forwarded-For ; enfin le pod whoami, joint directement. À droite, les lignes de la réponse de whoami qui témoignent de chaque étape.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#0F6E56" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="680" height="470" rx="12" fill="#FFFFFF"/>
+
+  <text x="20" y="30" font-size="14" font-weight="500" fill="#444441">Les étapes</text>
+  <text x="370" y="30" font-size="14" font-weight="500" fill="#444441">Ce que la réponse de whoami en montre</text>
+
+  <g font-size="12">
+    <rect x="20" y="44" width="330" height="64" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+    <circle cx="44" cy="76" r="12" fill="#5F5E5A"/><text x="44" y="80" text-anchor="middle" fill="#FFFFFF" font-weight="500">1</text>
+    <text x="66" y="66" font-size="14" font-weight="500" fill="#444441">Résolution du nom</text>
+    <text x="66" y="84" fill="#5F5E5A">whoami.lab.internal → 192.168.58.50</text>
+    <text x="66" y="99" fill="#5F5E5A">fichier hosts de Windows, ou curl --resolve</text>
+
+    <rect x="20" y="122" width="330" height="64" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+    <circle cx="44" cy="154" r="12" fill="#0F6E56"/><text x="44" y="158" text-anchor="middle" fill="#FFFFFF" font-weight="500">2</text>
+    <text x="66" y="144" font-size="14" font-weight="500" fill="#085041">ARP : MetalLB</text>
+    <text x="66" y="162" fill="#0F6E56">un nœud qui héberge un Envoy répond :</text>
+    <text x="66" y="177" fill="#0F6E56">ici k8s-worker-02, où le trafic arrive</text>
+
+    <rect x="20" y="200" width="330" height="64" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+    <circle cx="44" cy="232" r="12" fill="#0F6E56"/><text x="44" y="236" text-anchor="middle" fill="#FFFFFF" font-weight="500">3</text>
+    <text x="66" y="222" font-size="14" font-weight="500" fill="#085041">kube-proxy, politique Local</text>
+    <text x="66" y="240" fill="#0F6E56">remet le paquet à l'Envoy de ce nœud,</text>
+    <text x="66" y="255" fill="#0F6E56">sans changer l'adresse du client</text>
+
+    <rect x="20" y="278" width="330" height="64" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+    <circle cx="44" cy="310" r="12" fill="#854F0B"/><text x="44" y="314" text-anchor="middle" fill="#FFFFFF" font-weight="500">4</text>
+    <text x="66" y="300" font-size="14" font-weight="500" fill="#633806">Envoy</text>
+    <text x="66" y="318" fill="#854F0B">lit Host, trouve l'HTTPRoute whoami,</text>
+    <text x="66" y="333" fill="#854F0B">choisit un pod, ajoute X-Forwarded-For</text>
+
+    <rect x="20" y="356" width="330" height="64" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+    <circle cx="44" cy="388" r="12" fill="#534AB7"/><text x="44" y="392" text-anchor="middle" fill="#FFFFFF" font-weight="500">5</text>
+    <text x="66" y="378" font-size="14" font-weight="500" fill="#3C3489">Pod whoami</text>
+    <text x="66" y="396" fill="#534AB7">sur n'importe quel nœud, joint</text>
+    <text x="66" y="411" fill="#534AB7">directement par son adresse de pod</text>
+  </g>
+
+  <g stroke="#0F6E56" stroke-width="1.5" fill="none">
+    <line x1="185" y1="108" x2="185" y2="120" marker-end="url(#arrow)"/>
+    <line x1="185" y1="186" x2="185" y2="198" marker-end="url(#arrow)"/>
+    <line x1="185" y1="264" x2="185" y2="276" marker-end="url(#arrow)"/>
+    <line x1="185" y1="342" x2="185" y2="354" marker-end="url(#arrow)"/>
+  </g>
+
+  <rect x="370" y="44" width="290" height="376" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+  <g font-size="12">
+    <text x="384" y="72" font-family="Consolas, Menlo, monospace" fill="#2C2C2A">Host: whoami.lab.internal</text>
+    <text x="384" y="90" fill="#5F5E5A">le nom demandé (1), lu par Envoy (4)</text>
+
+    <text x="384" y="140" font-family="Consolas, Menlo, monospace" fill="#2C2C2A">X-Forwarded-For: 192.168.58.1</text>
+    <text x="384" y="158" fill="#5F5E5A">l'adresse de Windows, conservée (3, 4)</text>
+
+    <text x="384" y="208" font-family="Consolas, Menlo, monospace" fill="#2C2C2A">RemoteAddr: 10.244.118.98:38388</text>
+    <text x="384" y="226" fill="#5F5E5A">l'Envoy de k8s-worker-02 (2, 3, 4)</text>
+
+    <text x="384" y="276" font-family="Consolas, Menlo, monospace" fill="#2C2C2A">X-Request-Id: 11312655-...</text>
+    <text x="384" y="294" fill="#5F5E5A">un identifiant posé par Envoy (4)</text>
+
+    <text x="384" y="344" font-family="Consolas, Menlo, monospace" fill="#2C2C2A">Hostname: whoami-...-8kzb5</text>
+    <text x="384" y="362" fill="#5F5E5A">le pod choisi par Envoy (5)</text>
+  </g>
+
+  <text x="20" y="452" font-size="12" fill="#444441">Valeurs relevées dans le lab le 09/11/2026.</text>
+</svg>

@@ -1,0 +1,34 @@
+---
+# Gateway API : les CRD du canal « standard » (les types stables, sans les
+# fonctionnalités expérimentales), dans la version testée avec Envoy Gateway v1.10.
+# Changer de version, c'est changer AUSSI l'empreinte.
+envoy_gateway_gatewayapi_version: v1.6.1
+envoy_gateway_gatewayapi_url: "https://github.com/kubernetes-sigs/gateway-api/releases/download/{{ envoy_gateway_gatewayapi_version }}/standard-install.yaml"
+envoy_gateway_gatewayapi_checksum: sha256:24d931f22abd8e40c973264319ead7cfa09d0fb7716b7ab1ee2ff174cb063a73
+
+# Envoy Gateway : la seule version testée sur Kubernetes 1.37.
+# Deux fichiers officiels : ses propres CRD, et le manifeste complet, dont on
+# n'applique que le contrôleur (voir tasks/main.yml).
+envoy_gateway_version: v1.10.0
+envoy_gateway_release_url: "https://github.com/envoyproxy/gateway/releases/download/{{ envoy_gateway_version }}"
+envoy_gateway_crds_checksum: sha256:c3cdee42c9224968d2d3174da16cdb3260711b15355be651fe7b25031e4006b5
+envoy_gateway_install_checksum: sha256:f87f4d59b983aa760da52a2a0002c612028106fe69beefdf3d30cfb03905944e
+
+# Étiquette portée par les seuls objets du contrôleur dans le manifeste complet
+envoy_gateway_controller_selector: app.kubernetes.io/instance=eg
+
+# Dossier des manifestes sur le control plane, et kubeconfig utilisé par kubectl
+envoy_gateway_manifests_dir: /etc/kubernetes/addons/envoy-gateway
+envoy_gateway_kubeconfig: /etc/kubernetes/admin.conf
+
+# La Gateway partagée du lab : son nom, son namespace et sa classe
+envoy_gateway_class_name: envoy-gateway
+envoy_gateway_namespace: gateway
+envoy_gateway_name: lab-gateway
+
+# Nombre de copies d'Envoy : une par worker, pour que l'adresse de la Gateway
+# survive à la perte d'un nœud
+envoy_gateway_proxy_replicas: 2
+
+# Étiquette qu'un namespace doit porter pour publier des routes sur la Gateway
+envoy_gateway_access_label: lab.internal/gateway-access

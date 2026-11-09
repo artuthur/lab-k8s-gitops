@@ -1,0 +1,4 @@
+---
+# kubectl n'est utile que là où l'on administre le cluster : sur le control plane
+# (et, plus tard, sur le poste de contrôle WSL2). Les workers n'en ont pas besoin.
+kubernetes_packages_install_kubectl: true

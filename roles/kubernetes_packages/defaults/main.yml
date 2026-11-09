@@ -1,0 +1,24 @@
+---
+# Dépôt communautaire officiel de Kubernetes : un dépôt par version mineure
+# (k8s_version est défini dans inventory/group_vars/all/vars.yml).
+kubernetes_packages_repo_url: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/"
+kubernetes_packages_repo_key_url: "{{ kubernetes_packages_repo_url }}Release.key"
+
+# Paquets installés sur tous les nœuds, tous déclarés explicitement :
+#   cri-tools      : fournit crictl, l'outil de diagnostic du CRI
+#   kubernetes-cni : plugins réseau standard (loopback, bridge, host-local...)
+#                    dans /opt/cni/bin, utilisés avec le CNI (Calico, phase 4)
+# Ces deux paquets étaient autrefois des dépendances de kubeadm et kubelet ;
+# ils ne le sont plus dans les versions récentes (constaté le 03/11/2026 en 1.37).
+kubernetes_packages_base:
+  - kubelet
+  - kubeadm
+  - cri-tools
+  - kubernetes-cni
+
+# kubectl seulement là où l'on administre le cluster (activé pour le groupe
+# control_plane dans inventory/group_vars/control_plane.yml).
+kubernetes_packages_install_kubectl: false
+
+# Socket du CRI de containerd, utilisé par crictl.
+kubernetes_packages_cri_socket: /run/containerd/containerd.sock

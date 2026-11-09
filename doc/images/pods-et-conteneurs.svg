@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="430" viewBox="0 0 680 430" role="img" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <title>Pods, conteneurs et réseau des pods</title>
+  <desc>Deux workers. Sur le premier, un pod frontend contient trois conteneurs (pause, nginx, logs) qui partagent la même adresse IP, et un pod CoreDNS. Sur le second, un pod API et un pod base de données. Le frontend joint l'API sur l'autre nœud, l'API joint la base de données sur le même nœud. Calico attribue les adresses des pods, achemine le trafic entre les nœuds et applique les NetworkPolicies.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#5F5E5A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="680" height="430" rx="12" fill="#FFFFFF"/>
+
+  <rect x="30" y="30" width="300" height="270" rx="16" fill="none" stroke="#5F5E5A" stroke-width="0.8" stroke-dasharray="5 4"/>
+  <text x="48" y="54" font-size="14" font-weight="500" fill="#444441">k8s-worker-01</text>
+  <text x="162" y="54" font-size="12" fill="#5F5E5A">192.168.58.11</text>
+  <rect x="350" y="30" width="300" height="270" rx="16" fill="none" stroke="#5F5E5A" stroke-width="0.8" stroke-dasharray="5 4"/>
+  <text x="368" y="54" font-size="14" font-weight="500" fill="#444441">k8s-worker-02</text>
+  <text x="482" y="54" font-size="12" fill="#5F5E5A">192.168.58.12</text>
+
+  <rect x="50" y="70" width="260" height="140" rx="10" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+  <text x="180" y="92" text-anchor="middle" font-size="14" font-weight="500" fill="#3C3489">Pod frontend · 10.244.36.199</text>
+  <text x="180" y="110" text-anchor="middle" font-size="12" fill="#534AB7">une seule IP pour ses conteneurs</text>
+  <rect x="58" y="125" width="76" height="40" rx="6" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+  <text x="96" y="149" text-anchor="middle" font-size="12" fill="#444441">pause</text>
+  <rect x="142" y="125" width="76" height="40" rx="6" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+  <text x="180" y="149" text-anchor="middle" font-size="12" fill="#085041">nginx</text>
+  <rect x="226" y="125" width="76" height="40" rx="6" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+  <text x="264" y="149" text-anchor="middle" font-size="12" fill="#085041">logs</text>
+  <text x="180" y="192" text-anchor="middle" font-size="12" fill="#534AB7">entre eux : localhost</text>
+
+  <rect x="50" y="225" width="260" height="56" rx="10" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+  <text x="180" y="247" text-anchor="middle" font-size="14" font-weight="500" fill="#3C3489">Pod CoreDNS · 10.244.36.195</text>
+  <text x="180" y="266" text-anchor="middle" font-size="12" fill="#534AB7">le DNS du cluster</text>
+
+  <rect x="370" y="70" width="260" height="56" rx="10" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+  <text x="500" y="92" text-anchor="middle" font-size="14" font-weight="500" fill="#3C3489">Pod API · 10.244.118.66</text>
+  <text x="500" y="111" text-anchor="middle" font-size="12" fill="#534AB7">un seul conteneur</text>
+
+  <rect x="370" y="225" width="260" height="56" rx="10" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+  <text x="500" y="247" text-anchor="middle" font-size="14" font-weight="500" fill="#3C3489">Pod base de données · 10.244.118.67</text>
+  <text x="500" y="266" text-anchor="middle" font-size="12" fill="#534AB7">un seul conteneur</text>
+
+  <g stroke="#5F5E5A" stroke-width="1.5">
+    <line x1="310" y1="98" x2="368" y2="98" marker-end="url(#arrow)"/>
+    <line x1="500" y1="126" x2="500" y2="223" marker-end="url(#arrow)"/>
+  </g>
+
+  <rect x="30" y="320" width="620" height="56" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+  <text x="340" y="342" text-anchor="middle" font-size="14" font-weight="500" fill="#444441">Calico (le CNI)</text>
+  <text x="340" y="361" text-anchor="middle" font-size="12" fill="#5F5E5A">donne les adresses des pods, achemine le trafic entre les nœuds, applique les NetworkPolicies</text>
+  <text x="340" y="404" text-anchor="middle" font-size="12" fill="#444441">Le frontend joint l'API sur l'autre nœud, l'API joint la base sur le même nœud. Adresses d'exemple.</text>
+</svg>

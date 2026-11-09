@@ -1,0 +1,38 @@
+---
+# Plan d'adressage du cluster. Les trois plages ne doivent jamais se chevaucher
+# (voir doc/kubernetes-fondamentaux.md, section 4).
+k8s_node_network_cidr: "192.168.58.0/24"
+k8s_pod_network_cidr: "10.244.0.0/16"
+k8s_service_cidr: "10.96.0.0/12"
+
+# Adresses externes distribuées par MetalLB aux Services de type LoadBalancer.
+# Elles sont prises DANS le réseau des nœuds (pour être joignables depuis Windows
+# et WSL2), mais hors des adresses déjà utilisées : .1 (Windows), .10 à .12 (nœuds)
+# et la plage DHCP de VMware (par défaut .128 à .254).
+k8s_lb_address_range: "192.168.58.50-192.168.58.59"
+
+# Point d'entrée HTTP unique du cluster (Gateway API) : une adresse du pool de
+# MetalLB, réservée à la Gateway, et le domaine sous lequel les applications sont
+# publiées (whoami.lab.internal, etc.). Le domaine « .internal » est réservé par
+# l'ICANN aux réseaux privés : il ne peut pas entrer en conflit avec un vrai domaine.
+k8s_gateway_address: "192.168.58.50"
+k8s_apps_domain: lab.internal
+
+# Version mineure de Kubernetes. Elle choisit le dépôt de paquets (pkgs.k8s.io
+# publie un dépôt par version mineure) et servira à kubeadm en phase 3.
+# kubeadm, kubelet et kubectl doivent rester sur la même version mineure.
+k8s_version: "1.37"
+
+# Nom du cluster : il apparaît dans le kubeconfig (contexte kubernetes-admin@lab-k8s-gitops).
+k8s_cluster_name: lab-k8s-gitops
+
+# Point d'entrée de l'API server (controlPlaneEndpoint de kubeadm).
+# Un NOM plutôt que l'adresse du control plane : le jour où il y aura plusieurs
+# control planes, ce nom désignera une adresse partagée (load balancer) sans
+# reconstruire le cluster. Il est déclaré dans /etc/hosts par le rôle k8s_prereqs.
+k8s_api_endpoint_name: k8s-api
+k8s_api_endpoint_ip: "{{ hostvars[groups['control_plane'][0]]['ansible_host'] }}"
+k8s_api_endpoint_port: 6443
+
+# Socket du CRI de containerd, indiqué à kubeadm.
+k8s_cri_socket: unix:///run/containerd/containerd.sock

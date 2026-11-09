@@ -1,0 +1,69 @@
+---
+# Prérequis système de kubeadm, communs à tous les nœuds.
+# Référence : https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+
+# --- Swap ---------------------------------------------------------------------
+# Par défaut, le kubelet refuse de démarrer si du swap est actif : la mémoire
+# qu'il réserve aux pods doit être de la vraie RAM, pas du disque.
+
+- name: Désactiver le swap actif
+  ansible.builtin.command: swapoff -a
+  when: ansible_facts['swaptotal_mb'] | int > 0
+  changed_when: true
+
+- name: Commenter les entrées swap de /etc/fstab (pas de swap au prochain démarrage)
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#\n].*\sswap\s.*)$'
+    replace: '# \1'
+
+# --- Modules du noyau ---------------------------------------------------------
+# Chargés tout de suite ET déclarés dans /etc/modules-load.d/ pour survivre
+# à un redémarrage.
+
+- name: Charger les modules du noyau requis
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+    persistent: present
+  loop: "{{ k8s_prereqs_kernel_modules }}"
+
+# --- Paramètres réseau du noyau -----------------------------------------------
+# Après les modules : net.bridge.* n'existe qu'une fois br_netfilter chargé.
+
+- name: Appliquer les paramètres réseau du noyau
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: "{{ k8s_prereqs_sysctl_file }}"
+    state: present
+    reload: true
+  loop: "{{ k8s_prereqs_sysctl | dict2items }}"
+
+# --- Résolution de noms -------------------------------------------------------
+# Pas de DNS dans le lab : chaque nœud connaît les autres par /etc/hosts, avec
+# l'IP du réseau privé (et non celle de l'interface NAT de Vagrant).
+
+- name: Déclarer les nœuds du cluster dans /etc/hosts
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} NŒUDS DU CLUSTER (géré par Ansible)"
+    block: |
+      {% for host in groups['k8s_cluster'] %}
+      {{ hostvars[host]['ansible_host'] }} {{ host }}
+      {% endfor %}
+      {{ k8s_api_endpoint_ip }} {{ k8s_api_endpoint_name }}
+
+# Contrôle du résultat : le nom de l'API server se résout-il vers la bonne adresse ?
+# getent interroge le système comme le ferait n'importe quel programme (ordre de
+# /etc/nsswitch.conf : /etc/hosts, puis DNS). kubeadm init n'utilise PAS ce nom
+# (il se connecte à l'adresse locale du control plane) : sans ce contrôle, une
+# erreur n'apparaîtrait qu'à la création du jeton des workers.
+- name: Vérifier la résolution du nom de l'API server
+  ansible.builtin.command: getent hosts {{ k8s_api_endpoint_name }}
+  register: k8s_prereqs_api_lookup
+  changed_when: false
+  check_mode: false
+  failed_when: >-
+    k8s_prereqs_api_lookup.rc != 0
+    or (k8s_prereqs_api_lookup.stdout.split() | first) != k8s_api_endpoint_ip

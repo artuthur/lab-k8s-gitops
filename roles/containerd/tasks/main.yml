@@ -1,0 +1,82 @@
+---
+# Container runtime : containerd 2.x depuis le dépôt de Docker.
+# Référence : https://kubernetes.io/docs/setup/production-environment/container-runtimes/
+
+# Le module deb822_repository a besoin de la bibliothèque Python « debian »
+# sur la machine cible.
+- name: Installer les dépendances de gestion des dépôts APT
+  ansible.builtin.apt:
+    name:
+      - python3-debian
+      - ca-certificates
+    state: present
+
+# Format deb822 (/etc/apt/sources.list.d/docker.sources) : un dépôt décrit par
+# des champs clé: valeur, avec la clé de signature attachée au seul dépôt
+# qu'elle doit authentifier (Signed-By).
+- name: Déclarer le dépôt APT de Docker
+  ansible.builtin.deb822_repository:
+    name: docker
+    types: deb
+    uris: "{{ containerd_repo_url }}"
+    suites: "{{ ansible_facts['distribution_release'] }}"
+    components: stable
+    signed_by: "{{ containerd_repo_key_url }}"
+    state: present
+
+# update_cache sans cache_valid_time : le dépôt vient peut-être d'être ajouté,
+# un cache récent (rôle common) ne le connaîtrait pas encore. Sur le module apt,
+# rafraîchir le cache ne compte pas comme un changement quand un paquet est
+# demandé : l'idempotence est conservée.
+- name: Installer containerd
+  ansible.builtin.apt:
+    name: "{{ containerd_package }}"
+    state: present
+    update_cache: true
+
+# Bloquer la version : une mise à jour de containerd redémarre le runtime de
+# tous les conteneurs du nœud. Elle se fera volontairement, nœud par nœud.
+- name: Bloquer la version de containerd
+  ansible.builtin.dpkg_selections:
+    name: "{{ containerd_package }}"
+    selection: hold
+
+- name: Déployer la configuration de containerd
+  ansible.builtin.template:
+    src: config.toml.j2
+    dest: /etc/containerd/config.toml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Redémarrer containerd
+
+- name: Activer et démarrer containerd
+  ansible.builtin.systemd_service:
+    name: containerd
+    enabled: true
+    state: started
+
+# Appliquer la nouvelle configuration tout de suite (et non en fin de play) :
+# le kubelet installé par le rôle suivant se connecte à containerd dès son démarrage.
+- name: Appliquer immédiatement la configuration de containerd
+  ansible.builtin.meta: flush_handlers
+
+# Contrôle de la configuration EFFECTIVE (fichier fusionné avec les valeurs par
+# défaut), et non du fichier écrit : une section mal nommée serait ignorée sans
+# erreur par containerd. Lecture seule, donc exécutée aussi en mode --check.
+- name: Lire la configuration effective de containerd
+  ansible.builtin.command: containerd config dump
+  register: containerd_config_dump
+  changed_when: false
+  check_mode: false
+
+- name: Vérifier la configuration effective de containerd
+  ansible.builtin.assert:
+    that:
+      - "'disabled_plugins = []' in containerd_config_dump.stdout"
+      - "'SystemdCgroup = true' in containerd_config_dump.stdout"
+      - "'migrated' not in containerd_config_dump.stderr"
+    fail_msg: >-
+      La configuration de containerd n'est pas celle attendue (CRI désactivé,
+      driver cgroup incorrect, ou format de configuration obsolète).
+    success_msg: CRI actif, driver cgroup systemd, format de configuration à jour.

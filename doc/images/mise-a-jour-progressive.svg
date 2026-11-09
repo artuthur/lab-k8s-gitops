@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="330" viewBox="0 0 680 330" role="img" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <title>Mise à jour progressive d'un Deployment</title>
+  <desc>Quand on change l'image d'un Deployment, il crée un nouveau ReplicaSet. Pas à pas, le nouveau ReplicaSet gagne un pod et l'ancien en perd un, jusqu'à ce que tous les pods utilisent la nouvelle version. L'ancien ReplicaSet est conservé à zéro pod, ce qui permet de revenir en arrière.</desc>
+  <rect x="0" y="0" width="680" height="330" rx="12" fill="#FFFFFF"/>
+
+  <text x="200" y="36" text-anchor="middle" font-size="14" font-weight="500" fill="#444441">Ancien ReplicaSet (v1.11.0)</text>
+  <text x="500" y="36" text-anchor="middle" font-size="14" font-weight="500" fill="#444441">Nouveau ReplicaSet (v1.12.0)</text>
+
+  <g font-size="12">
+    <text x="40" y="78" fill="#5F5E5A">Départ</text>
+    <rect x="130" y="58" width="60" height="32" rx="6" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+    <rect x="210" y="58" width="60" height="32" rx="6" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+    <text x="500" y="79" text-anchor="middle" fill="#5F5E5A">aucun pod</text>
+
+    <text x="40" y="132" fill="#5F5E5A">Étape 1</text>
+    <rect x="130" y="112" width="60" height="32" rx="6" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+    <rect x="210" y="112" width="60" height="32" rx="6" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+    <rect x="430" y="112" width="60" height="32" rx="6" fill="#E1F5EE" stroke="#0F6E56" stroke-width="1" stroke-dasharray="3 2"/>
+    <text x="580" y="132" fill="#0F6E56">démarre</text>
+
+    <text x="40" y="186" fill="#5F5E5A">Étape 2</text>
+    <rect x="130" y="166" width="60" height="32" rx="6" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+    <rect x="430" y="166" width="60" height="32" rx="6" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+    <rect x="510" y="166" width="60" height="32" rx="6" fill="#E1F5EE" stroke="#0F6E56" stroke-width="1" stroke-dasharray="3 2"/>
+    <text x="300" y="186" fill="#854F0B">un ancien en moins</text>
+
+    <text x="40" y="240" fill="#5F5E5A">Fin</text>
+    <text x="200" y="241" text-anchor="middle" fill="#5F5E5A">0 pod, conservé</text>
+    <rect x="430" y="220" width="60" height="32" rx="6" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+    <rect x="510" y="220" width="60" height="32" rx="6" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+  </g>
+
+  <text x="340" y="286" text-anchor="middle" font-size="12" fill="#444441">Un nouveau pod ne remplace un ancien qu'une fois prêt (sonde readiness) : le service n'est jamais interrompu.</text>
+  <text x="340" y="308" text-anchor="middle" font-size="12" fill="#444441">L'ancien ReplicaSet, gardé à zéro pod, permet de revenir en arrière (kubectl rollout undo).</text>
+</svg>

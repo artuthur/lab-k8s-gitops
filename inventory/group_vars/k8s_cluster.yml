@@ -1,0 +1,13 @@
+---
+# Connexion SSH : clé privée générée par Vagrant (provider vmware_desktop), copiée
+# vers le système de fichiers natif de WSL2 par scripts/sync-vagrant-keys.sh.
+ansible_user: vagrant
+ansible_ssh_private_key_file: "{{ lookup('ansible.builtin.env', 'HOME') }}/.ssh/lab-k8s-gitops/private_key_{{ inventory_hostname }}"
+ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+ansible_python_interpreter: /usr/bin/python3
+
+# Pas de pare-feu UFW sur les nœuds : Kubernetes (kube-proxy) et le CNI (Calico)
+# écrivent eux-mêmes leurs règles iptables, et UFW bloque par défaut le trafic
+# transféré (FORWARD), celui des pods. Le filtrage passera par les NetworkPolicies
+# de Calico ; limite documentée dans le README.
+common_firewall_enabled: false

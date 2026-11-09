@@ -1,0 +1,129 @@
+---
+# Réseau des pods : Calico, installé par son opérateur (Tigera operator).
+# Référence : https://docs.tigera.io/calico/latest/getting-started/kubernetes/self-managed-onprem/onpremises
+
+- name: Créer le dossier des manifestes de Calico
+  ansible.builtin.file:
+    path: "{{ calico_manifests_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# Version figée et empreinte vérifiée : un fichier modifié en route, ou différent
+# de celui attendu, fait échouer le téléchargement.
+- name: Télécharger les manifestes de Calico
+  ansible.builtin.get_url:
+    url: "{{ calico_manifests_url }}/{{ item.name }}"
+    dest: "{{ calico_manifests_dir }}/{{ item.name }}"
+    checksum: "{{ item.checksum }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ calico_manifests }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Déployer la configuration de Calico
+  ansible.builtin.template:
+    src: custom-resources.yaml.j2
+    dest: "{{ calico_manifests_dir }}/custom-resources.yaml"
+    owner: root
+    group: root
+    mode: "0644"
+
+# --- Installation, en trois étapes ----------------------------------------------
+# Chaque fichier n'est appliqué qu'une fois, si l'objet témoin qu'il crée est
+# absent (même logique que « creates » pour kubeadm init). Raison : l'opérateur
+# réécrit la ressource Installation pour y ajouter ses valeurs par défaut. La
+# réappliquer à chaque passage effacerait ces ajouts, que l'opérateur remettrait :
+# les deux se renverraient la balle indéfiniment.
+# --server-side : le calcul des changements est fait par l'API server ; nécessaire
+# pour les très grosses CRD de Calico (trop volumineuses pour un « apply » classique).
+
+- name: Vérifier si les CRD de Calico sont installées
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ calico_kubeconfig }}
+    get crd installations.operator.tigera.io --ignore-not-found -o name
+  register: calico_crds_present
+  changed_when: false
+  check_mode: false
+
+- name: Installer les CRD de Calico
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ calico_kubeconfig }}
+    apply --server-side -f {{ calico_manifests_dir }}/v3_projectcalico_org.yaml
+  when: calico_crds_present.stdout | length == 0
+  changed_when: true
+
+# Une CRD doit être « Established » avant qu'on puisse créer des objets de ce type.
+- name: Attendre que les CRD de Calico soient enregistrées
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ calico_kubeconfig }} wait --for=condition=Established
+    crd/installations.operator.tigera.io crd/apiservers.operator.tigera.io
+    crd/tigerastatuses.operator.tigera.io --timeout=120s
+  changed_when: false
+
+- name: Vérifier si l'opérateur de Calico est installé
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ calico_kubeconfig }}
+    get deployment tigera-operator -n tigera-operator --ignore-not-found -o name
+  register: calico_operator_present
+  changed_when: false
+  check_mode: false
+
+- name: Installer l'opérateur de Calico
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ calico_kubeconfig }}
+    apply --server-side -f {{ calico_manifests_dir }}/tigera-operator.yaml
+  when: calico_operator_present.stdout | length == 0
+  changed_when: true
+
+# L'opérateur tourne sur le réseau du nœud (hostNetwork) : il démarre sans
+# attendre le réseau des pods qu'il est justement chargé d'installer.
+- name: Attendre que l'opérateur de Calico soit prêt
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ calico_kubeconfig }}
+    -n tigera-operator rollout status deployment/tigera-operator --timeout=300s
+  changed_when: false
+
+- name: Vérifier si la configuration de Calico est appliquée
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ calico_kubeconfig }}
+    get installation.operator.tigera.io default --ignore-not-found -o name
+  register: calico_installation_present
+  changed_when: false
+  check_mode: false
+
+- name: Appliquer la configuration de Calico
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ calico_kubeconfig }}
+    apply --server-side -f {{ calico_manifests_dir }}/custom-resources.yaml
+  when: calico_installation_present.stdout | length == 0
+  changed_when: true
+
+# --- Attente du résultat -----------------------------------------------------------
+# L'opérateur publie l'état de chaque composant dans une ressource TigeraStatus.
+# Elles n'existent pas tout de suite : on réessaie jusqu'à ce qu'elles existent
+# et soient « Available » (au plus 60 x 10 s).
+- name: Attendre que Calico soit opérationnel
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ calico_kubeconfig }} wait --for=condition=Available
+    tigerastatus/calico tigerastatus/apiserver --timeout=10s
+  register: calico_tigerastatus
+  until: calico_tigerastatus.rc == 0
+  retries: 60
+  delay: 10
+  changed_when: false
+
+- name: Attendre que tous les nœuds soient prêts
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ calico_kubeconfig }}
+    wait --for=condition=Ready node --all --timeout=300s
+  changed_when: false
+
+- name: Attendre que CoreDNS soit démarré
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ calico_kubeconfig }}
+    -n kube-system rollout status deployment/coredns --timeout=300s
+  changed_when: false

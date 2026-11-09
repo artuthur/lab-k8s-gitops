@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="470" viewBox="0 0 680 470" role="img" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <title>La Gateway API dans le lab</title>
+  <desc>L'infrastructure, installée par Ansible, comprend la GatewayClass envoy-gateway, la Gateway lab-gateway (écouteur HTTP sur le port 80 pour *.lab.internal), le contrôleur Envoy Gateway et les proxys Envoy qu'il crée, exposés par un Service LoadBalancer à l'adresse 192.168.58.50 attribuée par MetalLB. L'application comprend l'HTTPRoute whoami, qui se rattache à la Gateway pour le nom whoami.lab.internal, et les pods whoami. Le trafic va de Windows aux proxys Envoy, puis directement aux pods.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#5F5E5A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#0F6E56" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="680" height="470" rx="12" fill="#FFFFFF"/>
+
+  <rect x="20" y="225" width="150" height="90" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+  <text x="95" y="258" text-anchor="middle" font-size="14" font-weight="500" fill="#444441">Windows / WSL2</text>
+  <text x="95" y="280" text-anchor="middle" font-size="12" fill="#5F5E5A">curl http://</text>
+  <text x="95" y="296" text-anchor="middle" font-size="12" fill="#5F5E5A">whoami.lab.internal</text>
+
+  <rect x="195" y="12" width="470" height="238" rx="16" fill="none" stroke="#5F5E5A" stroke-width="0.8" stroke-dasharray="5 4"/>
+  <text x="213" y="34" font-size="14" font-weight="500" fill="#444441">Infrastructure</text>
+  <text x="645" y="34" text-anchor="end" font-size="12" fill="#5F5E5A">installée par Ansible</text>
+
+  <rect x="215" y="48" width="200" height="56" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+  <text x="315" y="70" text-anchor="middle" font-size="14" font-weight="500" fill="#633806">GatewayClass</text>
+  <text x="315" y="89" text-anchor="middle" font-size="12" fill="#854F0B">envoy-gateway</text>
+
+  <rect x="215" y="128" width="200" height="70" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+  <text x="315" y="150" text-anchor="middle" font-size="14" font-weight="500" fill="#633806">Gateway lab-gateway</text>
+  <text x="315" y="168" text-anchor="middle" font-size="12" fill="#854F0B">HTTP :80, *.lab.internal</text>
+  <text x="315" y="184" text-anchor="middle" font-size="11" fill="#854F0B">namespace gateway</text>
+
+  <rect x="445" y="48" width="200" height="56" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+  <text x="545" y="70" text-anchor="middle" font-size="14" font-weight="500" fill="#444441">Contrôleur Envoy Gateway</text>
+  <text x="545" y="89" text-anchor="middle" font-size="12" fill="#5F5E5A">lit la Gateway et les routes</text>
+
+  <rect x="445" y="150" width="200" height="80" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+  <text x="545" y="172" text-anchor="middle" font-size="14" font-weight="500" fill="#085041">Proxys Envoy (×2)</text>
+  <text x="545" y="191" text-anchor="middle" font-size="12" fill="#0F6E56">Service LoadBalancer</text>
+  <text x="545" y="207" text-anchor="middle" font-size="12" fill="#0F6E56">192.168.58.50 (MetalLB)</text>
+  <text x="545" y="222" text-anchor="middle" font-size="11" fill="#0F6E56">namespace envoy-gateway-system</text>
+
+  <rect x="195" y="290" width="470" height="130" rx="16" fill="none" stroke="#5F5E5A" stroke-width="0.8" stroke-dasharray="5 4"/>
+  <text x="213" y="312" font-size="14" font-weight="500" fill="#444441">Application</text>
+  <text x="330" y="312" font-size="12" fill="#5F5E5A">kubectl, puis Argo CD (phase 6)</text>
+
+  <rect x="215" y="326" width="200" height="70" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+  <text x="315" y="348" text-anchor="middle" font-size="14" font-weight="500" fill="#633806">HTTPRoute whoami</text>
+  <text x="315" y="366" text-anchor="middle" font-size="12" fill="#854F0B">whoami.lab.internal</text>
+  <text x="315" y="382" text-anchor="middle" font-size="11" fill="#854F0B">namespace demo</text>
+
+  <rect x="445" y="326" width="200" height="70" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+  <text x="545" y="348" text-anchor="middle" font-size="14" font-weight="500" fill="#3C3489">Pods whoami (×2)</text>
+  <text x="545" y="366" text-anchor="middle" font-size="12" fill="#534AB7">derrière le Service whoami</text>
+  <text x="545" y="382" text-anchor="middle" font-size="11" fill="#534AB7">namespace demo</text>
+
+  <g stroke="#5F5E5A" stroke-width="1.2" fill="none" stroke-dasharray="4 3">
+    <line x1="315" y1="128" x2="315" y2="106" marker-end="url(#arrow)"/>
+    <line x1="315" y1="326" x2="315" y2="200" marker-end="url(#arrow)"/>
+  </g>
+  <text x="323" y="232" font-size="12" fill="#444441">se rattache à</text>
+  <line x1="545" y1="104" x2="545" y2="148" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="553" y="131" font-size="12" fill="#444441">configure</text>
+
+  <g stroke="#0F6E56" stroke-width="2" fill="none">
+    <path d="M170 270 L430 270 L430 190 L443 190" marker-end="url(#arrow-green)"/>
+    <line x1="545" y1="230" x2="545" y2="324" marker-end="url(#arrow-green)"/>
+  </g>
+  <text x="537" y="276" text-anchor="end" font-size="12" fill="#0F6E56">vers les pods</text>
+
+  <text x="20" y="450" font-size="12" fill="#444441">Pointillés : la configuration (qui se rattache à quoi). Trait vert : le trafic HTTP.</text>
+</svg>

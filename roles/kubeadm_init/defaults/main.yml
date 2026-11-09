@@ -1,0 +1,8 @@
+---
+# Fichier de configuration lu par kubeadm init, conservé sur le control plane
+# comme trace de la façon dont le cluster a été créé.
+kubeadm_init_config_path: /etc/kubernetes/kubeadm-config.yaml
+
+# Copie du kubeconfig administrateur sur le poste de contrôle (WSL2).
+# Hors du dépôt Git : il contient un certificat et une clé privée d'administrateur.
+kubeadm_init_local_kubeconfig: "{{ lookup('ansible.builtin.env', 'HOME') }}/.kube/{{ k8s_cluster_name }}.conf"

@@ -1,0 +1,18 @@
+---
+# Version de MetalLB, en mode « native » (le plus léger : suffisant pour le mode L2).
+# Changer de version, c'est changer AUSSI l'empreinte ci-dessous.
+metallb_version: v0.16.2
+metallb_manifest_url: "https://raw.githubusercontent.com/metallb/metallb/{{ metallb_version }}/config/manifests/metallb-native.yaml"
+metallb_manifest_checksum: sha256:e5f7c268f114c446dc60aaad71b7cabf861f637743e033e354d7d48592807c6d
+
+# Dossier des manifestes sur le control plane
+metallb_manifests_dir: /etc/kubernetes/addons/metallb
+
+# Kubeconfig utilisé par kubectl sur le control plane
+metallb_kubeconfig: /etc/kubernetes/admin.conf
+
+# Configuration : un pool d'adresses (plage k8s_lb_address_range), annoncé en
+# mode L2 sur la seule interface du réseau privé des nœuds.
+metallb_pool_name: lab-pool
+metallb_l2_interfaces:
+  - eth1

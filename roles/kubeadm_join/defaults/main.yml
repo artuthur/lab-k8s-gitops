@@ -1,0 +1,7 @@
+---
+# Fichier de configuration lu par kubeadm join. Il contient le jeton d'amorçage :
+# il est supprimé juste après l'ajout du nœud.
+kubeadm_join_config_path: /etc/kubernetes/kubeadm-join.yaml
+
+# Durée de vie du jeton d'amorçage créé pour les workers à ajouter.
+kubeadm_join_token_ttl: 30m

@@ -1,0 +1,212 @@
+---
+# Point d'entrée HTTP du cluster : la Gateway API, mise en œuvre par Envoy Gateway.
+# Références : https://gateway-api.sigs.k8s.io/guides/
+#              https://gateway.envoyproxy.io/docs/install/install-yaml/
+#
+# Trois étages, chacun avec sa méthode :
+#   1. Les CRD (Gateway API et Envoy Gateway) et les namespaces : déclaratifs,
+#      comparés au cluster et appliqués à chaque passage.
+#   2. Le contrôleur : appliqué une seule fois.
+#   3. La configuration du lab (GatewayClass, EnvoyProxy, Gateway) : déclarative.
+
+- name: Créer le dossier des manifestes d'Envoy Gateway
+  ansible.builtin.file:
+    path: "{{ envoy_gateway_manifests_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Télécharger les manifestes officiels
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    dest: "{{ envoy_gateway_manifests_dir }}/{{ item.file }}"
+    checksum: "{{ item.checksum }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - file: gateway-api-standard.yaml
+      url: "{{ envoy_gateway_gatewayapi_url }}"
+      checksum: "{{ envoy_gateway_gatewayapi_checksum }}"
+    - file: envoy-gateway-crds.yaml
+      url: "{{ envoy_gateway_release_url }}/envoy-gateway-crds.yaml"
+      checksum: "{{ envoy_gateway_crds_checksum }}"
+    - file: envoy-gateway-install.yaml
+      url: "{{ envoy_gateway_release_url }}/install.yaml"
+      checksum: "{{ envoy_gateway_install_checksum }}"
+  loop_control:
+    label: "{{ item.file }}"
+
+- name: Déployer les manifestes du lab
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ envoy_gateway_manifests_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - namespaces.yaml
+    - gateway-config.yaml
+
+# --- 1. CRD et namespaces : déclaratifs ------------------------------------------------
+# Les CRD définissent les nouveaux types d'objets (Gateway, HTTPRoute, EnvoyProxy...).
+# Elles sont communes à tout le cluster : on les gère à part du contrôleur, pour
+# pouvoir les mettre à jour par une simple montée de version.
+# Codes de retour de kubectl diff : 0 = identique, 1 = différences, >1 = erreur.
+- name: Comparer les CRD et les namespaces à ceux du cluster
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ envoy_gateway_kubeconfig }}
+    diff --server-side
+    -f {{ envoy_gateway_manifests_dir }}/gateway-api-standard.yaml
+    -f {{ envoy_gateway_manifests_dir }}/envoy-gateway-crds.yaml
+    -f {{ envoy_gateway_manifests_dir }}/namespaces.yaml
+  register: envoy_gateway_base_diff
+  changed_when: false
+  failed_when: envoy_gateway_base_diff.rc > 1
+  check_mode: false
+
+- name: Appliquer les CRD et les namespaces
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ envoy_gateway_kubeconfig }}
+    apply --server-side
+    -f {{ envoy_gateway_manifests_dir }}/gateway-api-standard.yaml
+    -f {{ envoy_gateway_manifests_dir }}/envoy-gateway-crds.yaml
+    -f {{ envoy_gateway_manifests_dir }}/namespaces.yaml
+  when: envoy_gateway_base_diff.rc == 1
+  changed_when: true
+
+# Une CRD est utilisable une fois « Established » : l'API server sert alors le nouveau type.
+- name: Attendre que les nouveaux types d'objets soient servis
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ envoy_gateway_kubeconfig }}
+    wait --for=condition=Established --timeout=60s
+    crd/gatewayclasses.gateway.networking.k8s.io
+    crd/gateways.gateway.networking.k8s.io
+    crd/httproutes.gateway.networking.k8s.io
+    crd/envoyproxies.gateway.envoyproxy.io
+  changed_when: false
+
+# --- 2. Contrôleur : une seule fois -------------------------------------------------
+# Le manifeste complet contient AUSSI les CRD de la Gateway API, mais celles du
+# canal expérimental. L'option --selector n'applique que les objets portant
+# l'étiquette du contrôleur ; les CRD, qui ne la portent pas, sont ignorées.
+# (La règle « safe-upgrades », installée avec les CRD standard, refuserait d'ailleurs
+# de les remplacer par des CRD expérimentales.)
+# Le manifeste contient un Job, qui crée les certificats internes du contrôleur :
+# le réappliquer à chaque passage échouerait, car un Job ne peut pas être modifié.
+- name: Vérifier si le contrôleur d'Envoy Gateway est installé
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ envoy_gateway_kubeconfig }}
+    get deployment envoy-gateway -n envoy-gateway-system --ignore-not-found -o name
+  register: envoy_gateway_present
+  changed_when: false
+  check_mode: false
+
+- name: Installer le contrôleur d'Envoy Gateway
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ envoy_gateway_kubeconfig }}
+    apply --server-side
+    -f {{ envoy_gateway_manifests_dir }}/envoy-gateway-install.yaml
+    --selector {{ envoy_gateway_controller_selector }}
+  when: envoy_gateway_present.stdout | length == 0
+  changed_when: true
+
+- name: Attendre que le contrôleur d'Envoy Gateway soit prêt
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ envoy_gateway_kubeconfig }}
+    -n envoy-gateway-system rollout status deployment/envoy-gateway --timeout=300s
+  changed_when: false
+
+# --- 3. Configuration du lab : déclarative -----------------------------------------
+- name: Comparer la configuration de la Gateway à celle du cluster
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ envoy_gateway_kubeconfig }}
+    diff --server-side -f {{ envoy_gateway_manifests_dir }}/gateway-config.yaml
+  register: envoy_gateway_config_diff
+  until: envoy_gateway_config_diff.rc in [0, 1]
+  retries: 6
+  delay: 10
+  changed_when: false
+  failed_when: envoy_gateway_config_diff.rc > 1
+  check_mode: false
+
+- name: Appliquer la configuration de la Gateway
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ envoy_gateway_kubeconfig }}
+    apply --server-side -f {{ envoy_gateway_manifests_dir }}/gateway-config.yaml
+  when: envoy_gateway_config_diff.rc == 1
+  changed_when: true
+
+# --- Vérifications -------------------------------------------------------------------
+# Accepted : le contrôleur a reconnu la classe comme la sienne.
+- name: Attendre que la GatewayClass soit acceptée par Envoy Gateway
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ envoy_gateway_kubeconfig }}
+    wait --for=condition=Accepted --timeout=120s
+    gatewayclass/{{ envoy_gateway_class_name }}
+  changed_when: false
+
+# Programmed : les proxys Envoy tournent ET MetalLB a donné une adresse à leur Service.
+- name: Attendre que la Gateway soit opérationnelle
+  block:
+    - name: Attendre l'état Programmed de la Gateway
+      ansible.builtin.command: >-
+        kubectl --kubeconfig {{ envoy_gateway_kubeconfig }}
+        -n {{ envoy_gateway_namespace }}
+        wait --for=condition=Programmed --timeout=300s
+        gateway/{{ envoy_gateway_name }}
+      changed_when: false
+
+  rescue:
+    - name: Lire l'état de la Gateway
+      ansible.builtin.command: >-
+        kubectl --kubeconfig {{ envoy_gateway_kubeconfig }}
+        -n {{ envoy_gateway_namespace }} get gateway {{ envoy_gateway_name }}
+        -o 'jsonpath={.status.conditions[?(@.type=="Programmed")].message}'
+      register: envoy_gateway_programmed_message
+      changed_when: false
+      failed_when: false
+
+    - name: Signaler l'échec, avec la piste la plus probable
+      ansible.builtin.fail:
+        msg: >-
+          La Gateway n'est pas opérationnelle : « {{ envoy_gateway_programmed_message.stdout }} ».
+          Si aucune adresse n'est attribuée, vérifier que {{ k8s_gateway_address }} n'est pas
+          déjà prise par un autre Service (kubectl get services -A | grep {{ k8s_gateway_address }}).
+          Sinon : kubectl -n envoy-gateway-system get pods.
+
+- name: Lire l'adresse de la Gateway
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ envoy_gateway_kubeconfig }}
+    -n {{ envoy_gateway_namespace }} get gateway {{ envoy_gateway_name }}
+    -o jsonpath={.status.addresses[*].value}
+  register: envoy_gateway_address
+  changed_when: false
+  check_mode: false
+
+- name: Vérifier que la Gateway a reçu l'adresse prévue
+  ansible.builtin.assert:
+    that:
+      - envoy_gateway_address.stdout == k8s_gateway_address
+    fail_msg: >-
+      La Gateway a l'adresse « {{ envoy_gateway_address.stdout }} »,
+      au lieu de {{ k8s_gateway_address }}.
+    quiet: true
+
+# Le vrai chemin, depuis le poste de contrôle : ARP (MetalLB), proxy Envoy, routage.
+# Un nom pour lequel aucune route n'existe : Envoy doit répondre 404 (« aucune route »).
+- name: Vérifier que la Gateway répond depuis le poste de contrôle
+  ansible.builtin.uri:
+    url: "http://{{ k8s_gateway_address }}/"
+    headers:
+      Host: "controle.{{ k8s_apps_domain }}"
+    status_code: 404
+    use_proxy: false
+    timeout: 5
+  register: envoy_gateway_probe
+  until: envoy_gateway_probe.status == 404
+  retries: 10
+  delay: 3
+  delegate_to: localhost
+  become: false

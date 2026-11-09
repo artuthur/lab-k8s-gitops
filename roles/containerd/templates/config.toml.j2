@@ -1,0 +1,17 @@
+# {{ ansible_managed }}
+#
+# Configuration minimale : on ne déclare que ce qui diffère des valeurs par défaut
+# de containerd. Tout le reste prend la valeur par défaut de la version installée
+# (voir la configuration effective avec : sudo containerd config dump).
+#
+# Remplacer entièrement le fichier fourni par le paquet containerd.io est voulu :
+# celui-ci contient disabled_plugins = ["cri"], qui désactive l'interface utilisée
+# par le kubelet.
+
+# Format de configuration de containerd 2.x
+version = 4
+
+# Le kubelet et containerd doivent utiliser le même gestionnaire de cgroups.
+# Sur un système démarré par systemd, c'est systemd (règle du « seul écrivain »).
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc.options]
+  SystemdCgroup = true

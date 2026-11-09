@@ -1,0 +1,52 @@
+---
+- name: Configuration de base de tous les nœuds
+  hosts: k8s_cluster
+  become: true
+  roles:
+    - common
+    - k8s_prereqs
+
+- name: Container runtime et paquets Kubernetes sur tous les nœuds
+  hosts: k8s_cluster
+  become: true
+  roles:
+    - containerd
+    - kubernetes_packages
+
+- name: Création du cluster sur le control plane
+  hosts: control_plane
+  become: true
+  roles:
+    - kubeadm_init
+
+- name: Ajout des workers au cluster
+  hosts: workers
+  become: true
+  roles:
+    - kubeadm_join
+
+# Après l'ajout des workers : Calico attend que tous les nœuds soient prêts.
+- name: Réseau des pods (Calico)
+  hosts: control_plane
+  become: true
+  roles:
+    - calico
+
+# Après Calico : le contrôleur de MetalLB est un pod ordinaire, qui a besoin du réseau des pods.
+- name: Adresses externes des Services (MetalLB)
+  hosts: control_plane
+  become: true
+  roles:
+    - metallb
+
+- name: Point d'entrée du cluster (Gateway)
+  hosts: control_plane
+  become: true
+  roles:
+    - envoy_gateway
+
+- name: Vérification du cluster
+  hosts: control_plane
+  become: true
+  roles:
+    - cluster_verify

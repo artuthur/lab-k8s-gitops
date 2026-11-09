@@ -1,0 +1,21 @@
+---
+# Modules du noyau nécessaires à containerd et au réseau des pods :
+#   overlay      : système de fichiers en couches des images de conteneurs
+#   br_netfilter : fait passer le trafic des ponts réseau (bridges) par iptables,
+#                  sinon les règles des Services (kube-proxy) ne s'appliquent pas
+#                  au trafic entre pods d'un même nœud
+k8s_prereqs_kernel_modules:
+  - overlay
+  - br_netfilter
+
+# Paramètres réseau du noyau.
+#   bridge-nf-call-*  : n'existent qu'une fois br_netfilter chargé (d'où l'ordre
+#                       des tâches) ; activent le passage du trafic ponté par iptables
+#   ip_forward        : autorise le nœud à router des paquets qui ne lui sont pas
+#                       destinés, ce qu'il fait en permanence pour ses pods
+k8s_prereqs_sysctl:
+  net.bridge.bridge-nf-call-iptables: 1
+  net.bridge.bridge-nf-call-ip6tables: 1
+  net.ipv4.ip_forward: 1
+
+k8s_prereqs_sysctl_file: /etc/sysctl.d/99-kubernetes.conf

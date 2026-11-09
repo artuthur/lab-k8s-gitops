@@ -1,0 +1,12 @@
+---
+# Dépôt APT officiel de Docker. On n'y prend QUE le paquet containerd.io
+# (containerd + runc), pas Docker Engine.
+# Debian 12 fournit containerd 1.6, or Kubernetes n'accepte plus containerd 1.x
+# depuis la version 1.36 : il faut containerd 2.x.
+containerd_repo_url: "https://download.docker.com/linux/debian"
+containerd_repo_key_url: "https://download.docker.com/linux/debian/gpg"
+
+containerd_package: containerd.io
+
+# Socket Unix par lequel le kubelet (et crictl) parlent au CRI de containerd.
+containerd_socket: /run/containerd/containerd.sock

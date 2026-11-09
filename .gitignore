@@ -1,0 +1,19 @@
+# Vagrant : état local des VMs, propre à chaque machine
+.vagrant/
+
+# Secrets : ne doivent jamais être versionnés
+.vault_pass
+*.retry
+
+# Clés SSH et kubeconfig (contient le certificat administrateur du cluster)
+*.pem
+private_key
+id_ed25519*
+!id_ed25519*.pub.example
+kubeconfig
+admin.conf
+
+# Fichiers temporaires système
+.DS_Store
+Thumbs.db
+*.swp
