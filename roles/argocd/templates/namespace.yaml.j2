@@ -1,0 +1,17 @@
+---
+# {{ ansible_managed }}
+#
+# Le namespace d'Argo CD. Déclaré ici plutôt que créé à la main, pour porter :
+# - le niveau de sécurité « restricted » : les pods d'Argo CD le respectent
+#   (exécution sans root, aucun privilège, capacités retirées, seccomp) ;
+# - l'étiquette d'accès à la Gateway, pour publier l'interface d'Argo CD.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ argocd_namespace }}
+  labels:
+    app.kubernetes.io/part-of: {{ k8s_cluster_name }}
+    {{ k8s_gateway_access_label }}: "true"
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

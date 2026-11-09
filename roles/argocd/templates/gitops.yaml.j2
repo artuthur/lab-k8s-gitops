@@ -1,0 +1,94 @@
+---
+# {{ ansible_managed }}
+#
+# Le GitOps du lab : l'interface d'Argo CD publiée sur la Gateway, un projet qui
+# délimite ce que les applications du dépôt ont le droit de faire, et un
+# ApplicationSet qui crée une application par sous-dossier de {{ argocd_apps_path }}/.
+#
+# L'interface d'Argo CD, sous {{ argocd_hostname }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argocd
+  namespace: {{ argocd_namespace }}
+spec:
+  parentRefs:
+    - name: {{ k8s_gateway_name }}
+      namespace: {{ k8s_gateway_namespace }}
+      sectionName: http
+  hostnames:
+    - {{ argocd_hostname }}
+  rules:
+    - backendRefs:
+        - name: argocd-server
+          port: 80
+---
+# Le projet : les règles communes aux applications du dépôt.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: {{ argocd_project }}
+  namespace: {{ argocd_namespace }}
+spec:
+  description: Applications du dossier {{ argocd_apps_path }}/ du dépôt {{ k8s_gitops_repo_url }}
+  # Une seule source autorisée : le dépôt du lab
+  sourceRepos:
+    - {{ k8s_gitops_repo_url }}
+  # Ce cluster, dans n'importe quel namespace... sauf ceux du socle
+  destinations:
+{% for namespace in argocd_protected_namespaces %}
+    - server: https://kubernetes.default.svc
+      namespace: "!{{ namespace }}"
+{% endfor %}
+    - server: https://kubernetes.default.svc
+      namespace: "*"
+  # Objets sans namespace autorisés : les namespaces seulement (pas de rôles
+  # sur tout le cluster, pas de CRD...)
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+---
+# L'ApplicationSet : un modèle d'application, et un générateur qui le remplit.
+# Le générateur liste les sous-dossiers de {{ argocd_apps_path }}/ dans le dépôt ;
+# pour chacun, Argo CD crée une application qui porte son nom.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: apps
+  namespace: {{ argocd_namespace }}
+spec:
+  # Modèle au format Go (les {{ '{{ }}' }} ci-dessous sont remplis par Argo CD, pas par Ansible)
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: {{ k8s_gitops_repo_url }}
+        revision: {{ k8s_gitops_revision }}
+        directories:
+          - path: {{ argocd_apps_path }}/*
+  template:
+    metadata:
+      name: '{% raw %}{{ .path.basename }}{% endraw %}'
+    spec:
+      project: {{ argocd_project }}
+      source:
+        repoURL: {{ k8s_gitops_repo_url }}
+        targetRevision: {{ k8s_gitops_revision }}
+        path: '{% raw %}{{ .path.path }}{% endraw %}'
+      # Pas de namespace par défaut : chaque fichier de l'application nomme le sien
+      destination:
+        server: https://kubernetes.default.svc
+      syncPolicy:
+        # Synchronisation automatique : le dépôt fait foi.
+        #   prune    : un objet retiré du dépôt est retiré du cluster
+        #   selfHeal : une modification faite à la main dans le cluster est annulée
+        automated:
+          prune: true
+          selfHeal: true
+        # Une synchronisation qui échoue est retentée, avec un délai croissant
+        retry:
+          limit: 5
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 3m

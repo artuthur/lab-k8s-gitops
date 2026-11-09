@@ -1,0 +1,29 @@
+---
+# {{ ansible_managed }}
+#
+# Réglages d'Argo CD. Ces deux ConfigMaps existent aussi dans le manifeste
+# officiel (vides ou avec d'autres clés) : elles sont appliquées avec un
+# gestionnaire de champs distinct ({{ argocd_field_manager }}), pour que chaque
+# source garde la propriété de ses propres clés.
+#
+# Paramètres de démarrage des composants. Lus au démarrage : une modification
+# demande de redémarrer le composant concerné (le rôle le fait pour argocd-server).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cmd-params-cm
+  namespace: {{ argocd_namespace }}
+data:
+  # HTTP simple, sans TLS : c'est la Gateway qui reçoit les clients. Sans ce
+  # réglage, argocd-server redirigerait toute requête HTTP vers HTTPS.
+  server.insecure: "true"
+---
+# Configuration générale. Relue en continu par Argo CD : aucun redémarrage nécessaire.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+  namespace: {{ argocd_namespace }}
+data:
+  # L'adresse publique de l'interface (liens, notifications, SSO)
+  url: http://{{ argocd_hostname }}

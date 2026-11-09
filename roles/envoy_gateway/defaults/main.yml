@@ -21,14 +21,16 @@ envoy_gateway_controller_selector: app.kubernetes.io/instance=eg
 envoy_gateway_manifests_dir: /etc/kubernetes/addons/envoy-gateway
 envoy_gateway_kubeconfig: /etc/kubernetes/admin.conf
 
-# La Gateway partagée du lab : son nom, son namespace et sa classe
+# La Gateway partagée du lab : sa classe, son namespace et son nom
+# (namespace et nom définis dans inventory/group_vars/all/vars.yml : les routes
+# des autres rôles, comme celle d'Argo CD, doivent les connaître aussi)
 envoy_gateway_class_name: envoy-gateway
-envoy_gateway_namespace: gateway
-envoy_gateway_name: lab-gateway
+envoy_gateway_namespace: "{{ k8s_gateway_namespace }}"
+envoy_gateway_name: "{{ k8s_gateway_name }}"
 
 # Nombre de copies d'Envoy : une par worker, pour que l'adresse de la Gateway
 # survive à la perte d'un nœud
 envoy_gateway_proxy_replicas: 2
 
 # Étiquette qu'un namespace doit porter pour publier des routes sur la Gateway
-envoy_gateway_access_label: lab.internal/gateway-access
+envoy_gateway_access_label: "{{ k8s_gateway_access_label }}"

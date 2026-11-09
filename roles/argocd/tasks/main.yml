@@ -1,0 +1,224 @@
+---
+# GitOps : Argo CD, qui applique au cluster les applications décrites dans le dépôt Git.
+# Référence : https://argo-cd.readthedocs.io/en/stable/operator-manual/installation/
+#
+# Quatre étages, tous déclaratifs (comparés au cluster, appliqués s'ils diffèrent) :
+#   1. le namespace ;
+#   2. nos réglages, AVANT le manifeste : argocd-server les trouve dès son premier démarrage ;
+#   3. le manifeste officiel. Contrairement à Calico, MetalLB et Envoy Gateway, aucun
+#      de ses objets n'est réécrit par un contrôleur, et sa procédure officielle de
+#      mise à jour est justement de le réappliquer : une montée de version suffit ;
+#   4. le GitOps du lab (route, projet, ApplicationSet), qui a besoin des CRD d'Argo CD.
+
+- name: Créer le dossier des manifestes d'Argo CD
+  ansible.builtin.file:
+    path: "{{ argocd_manifests_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Télécharger le manifeste d'Argo CD
+  ansible.builtin.get_url:
+    url: "{{ argocd_manifest_url }}"
+    dest: "{{ argocd_manifests_dir }}/install.yaml"
+    checksum: "{{ argocd_manifest_checksum }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Déployer les manifestes du lab
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ argocd_manifests_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - namespace.yaml
+    - argocd-config.yaml
+    - gitops.yaml
+
+- name: Vérifier si Argo CD est déjà installé
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ argocd_kubeconfig }}
+    get deployment argocd-server -n {{ argocd_namespace }} --ignore-not-found -o name
+  register: argocd_present
+  changed_when: false
+  check_mode: false
+
+# --- 1. Namespace ------------------------------------------------------------------
+# À part : kubectl diff ne peut pas simuler des objets dans un namespace qui n'existe pas.
+# Codes de retour de kubectl diff : 0 = identique, 1 = différences, >1 = erreur.
+- name: Comparer le namespace d'Argo CD à celui du cluster
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ argocd_kubeconfig }}
+    diff --server-side --field-manager={{ argocd_field_manager }}
+    -f {{ argocd_manifests_dir }}/namespace.yaml
+  register: argocd_namespace_diff
+  changed_when: false
+  failed_when: argocd_namespace_diff.rc > 1
+  check_mode: false
+
+- name: Appliquer le namespace d'Argo CD
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ argocd_kubeconfig }}
+    apply --server-side --field-manager={{ argocd_field_manager }}
+    -f {{ argocd_manifests_dir }}/namespace.yaml
+  when: argocd_namespace_diff.rc == 1
+  changed_when: true
+
+# --- 2. Nos réglages -----------------------------------------------------------------
+- name: Comparer les réglages d'Argo CD à ceux du cluster
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ argocd_kubeconfig }}
+    diff --server-side --field-manager={{ argocd_field_manager }}
+    -f {{ argocd_manifests_dir }}/argocd-config.yaml
+  register: argocd_config_diff
+  changed_when: false
+  failed_when: argocd_config_diff.rc > 1
+  check_mode: false
+
+- name: Appliquer les réglages d'Argo CD
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ argocd_kubeconfig }}
+    apply --server-side --field-manager={{ argocd_field_manager }}
+    -f {{ argocd_manifests_dir }}/argocd-config.yaml
+  when: argocd_config_diff.rc == 1
+  changed_when: true
+
+# --- 3. Le manifeste officiel ------------------------------------------------------
+# Méthode officielle : --server-side (certaines CRD sont trop grandes pour la méthode
+# classique) et --force-conflicts (reprendre la propriété des champs lors d'une mise
+# à jour). Les objets du manifeste n'ont pas de namespace : -n le leur donne.
+- name: Comparer Argo CD au manifeste officiel
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ argocd_kubeconfig }}
+    diff --server-side --force-conflicts -n {{ argocd_namespace }}
+    -f {{ argocd_manifests_dir }}/install.yaml
+  register: argocd_install_diff
+  changed_when: false
+  failed_when: argocd_install_diff.rc > 1
+  check_mode: false
+
+- name: Installer ou mettre à jour Argo CD
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ argocd_kubeconfig }}
+    apply --server-side --force-conflicts -n {{ argocd_namespace }}
+    -f {{ argocd_manifests_dir }}/install.yaml
+  when: argocd_install_diff.rc == 1
+  changed_when: true
+
+# Les paramètres de démarrage ne sont lus qu'au démarrage : si argocd-server tournait
+# déjà quand ils ont changé, il faut le redémarrer (nouveaux pods, puis arrêt des anciens).
+- name: Redémarrer argocd-server pour qu'il lise ses nouveaux réglages
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ argocd_kubeconfig }}
+    -n {{ argocd_namespace }} rollout restart deployment/argocd-server
+  when:
+    - argocd_config_diff.rc == 1
+    - argocd_present.stdout | length > 0
+  changed_when: true
+
+- name: Attendre que les nouveaux types d'objets d'Argo CD soient servis
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ argocd_kubeconfig }}
+    wait --for=condition=Established --timeout=60s
+    crd/applications.argoproj.io
+    crd/applicationsets.argoproj.io
+    crd/appprojects.argoproj.io
+  changed_when: false
+
+# Au premier lancement, les images sont téléchargées : compter quelques minutes.
+- name: Attendre que les composants d'Argo CD soient prêts
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ argocd_kubeconfig }}
+    -n {{ argocd_namespace }} rollout status {{ item }} --timeout=600s
+  loop: "{{ argocd_workloads }}"
+  changed_when: false
+
+# --- 4. Le GitOps du lab -------------------------------------------------------------
+- name: Comparer la configuration GitOps à celle du cluster
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ argocd_kubeconfig }}
+    diff --server-side --field-manager={{ argocd_field_manager }}
+    -f {{ argocd_manifests_dir }}/gitops.yaml
+  register: argocd_gitops_diff
+  until: argocd_gitops_diff.rc in [0, 1]
+  retries: 6
+  delay: 10
+  changed_when: false
+  failed_when: argocd_gitops_diff.rc > 1
+  check_mode: false
+
+- name: Appliquer la configuration GitOps
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ argocd_kubeconfig }}
+    apply --server-side --field-manager={{ argocd_field_manager }}
+    -f {{ argocd_manifests_dir }}/gitops.yaml
+  when: argocd_gitops_diff.rc == 1
+  changed_when: true
+
+# --- Vérifications -------------------------------------------------------------------
+# Par la Gateway, depuis le poste de contrôle : la route, argocd-server, et le mode
+# HTTP simple (sans lui, la réponse serait une redirection vers HTTPS).
+- name: Vérifier que l'interface d'Argo CD répond par la Gateway
+  ansible.builtin.uri:
+    url: "http://{{ k8s_gateway_address }}/healthz"
+    headers:
+      Host: "{{ argocd_hostname }}"
+    follow_redirects: none
+    status_code: 200
+    use_proxy: false
+    timeout: 5
+  register: argocd_probe
+  until: argocd_probe.status == 200
+  retries: 20
+  delay: 5
+  delegate_to: localhost
+  become: false
+
+# ParametersGenerated : le générateur a lu le dépôt et listé les dossiers de apps/.
+- name: Vérifier qu'Argo CD lit le dépôt Git
+  block:
+    - name: Attendre que l'ApplicationSet ait lu le dépôt
+      ansible.builtin.command: >-
+        kubectl --kubeconfig {{ argocd_kubeconfig }}
+        -n {{ argocd_namespace }}
+        wait --for=condition=ParametersGenerated --timeout=180s applicationset/apps
+      changed_when: false
+
+  rescue:
+    - name: Lire l'erreur de l'ApplicationSet
+      ansible.builtin.command: >-
+        kubectl --kubeconfig {{ argocd_kubeconfig }}
+        -n {{ argocd_namespace }} get applicationset apps
+        -o 'jsonpath={.status.conditions[?(@.type=="ErrorOccurred")].message}'
+      register: argocd_appset_error
+      changed_when: false
+      failed_when: false
+
+    - name: Signaler l'échec, avec la piste la plus probable
+      ansible.builtin.fail:
+        msg: >-
+          Argo CD n'arrive pas à lire le dépôt {{ k8s_gitops_repo_url }}
+          (branche {{ k8s_gitops_revision }}) : « {{ argocd_appset_error.stdout }} ».
+          Vérifier que le dépôt est public et que la branche a été poussée sur GitHub.
+
+- name: Lister les applications créées par l'ApplicationSet
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ argocd_kubeconfig }}
+    -n {{ argocd_namespace }} get applications
+    -o jsonpath={.items[*].metadata.name}
+  register: argocd_applications
+  changed_when: false
+  check_mode: false
+
+- name: Vérifier qu'au moins une application a été créée
+  ansible.builtin.assert:
+    that:
+      - argocd_applications.stdout | length > 0
+    fail_msg: >-
+      Le dépôt a été lu, mais aucune application n'a été créée : le dossier
+      {{ argocd_apps_path }}/ de la branche {{ k8s_gitops_revision }} ne contient aucun sous-dossier.
+    success_msg: "Applications gérées par Argo CD : {{ argocd_applications.stdout }}"

@@ -45,6 +45,12 @@
   roles:
     - envoy_gateway
 
+- name: GitOps (Argo CD)
+  hosts: control_plane
+  become: true
+  roles:
+    - argocd
+
 - name: Vérification du cluster
   hosts: control_plane
   become: true

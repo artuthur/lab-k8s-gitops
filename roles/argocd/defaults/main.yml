@@ -1,0 +1,49 @@
+---
+# Argo CD : la version 3.6 est testée sur Kubernetes 1.34 à 1.37.
+# Manifeste « non haute disponibilité » : une copie de chaque composant, adapté à un lab.
+# Changer de version, c'est changer AUSSI l'empreinte (insérée par script, jamais recopiée).
+argocd_version: v3.6.1
+argocd_manifest_url: "https://raw.githubusercontent.com/argoproj/argo-cd/{{ argocd_version }}/manifests/install.yaml"
+argocd_manifest_checksum: sha256:7be23ca7d9ca3d3074dee8332f1ca92a933b990cee7c9cf22cf3843ee8c2913e
+
+# Dossier des manifestes sur le control plane, et kubeconfig utilisé par kubectl
+argocd_manifests_dir: /etc/kubernetes/addons/argocd
+argocd_kubeconfig: /etc/kubernetes/admin.conf
+
+# Namespace imposé par le manifeste officiel : ses ClusterRoleBindings le nomment.
+argocd_namespace: argocd
+
+# Nom sous lequel l'interface d'Argo CD est publiée sur la Gateway
+argocd_hostname: "argocd.{{ k8s_apps_domain }}"
+
+# Nom du « gestionnaire de champs » de nos objets de configuration. L'API server
+# note, champ par champ, qui l'a écrit : nos réglages (dans des ConfigMaps aussi
+# présentes dans le manifeste officiel) ne seront jamais effacés par une
+# réapplication du manifeste, qui a son propre gestionnaire.
+argocd_field_manager: lab-k8s-gitops
+
+# Le projet Argo CD des applications du dépôt, et le dossier qui les contient :
+# chaque sous-dossier de apps/ devient une application.
+argocd_project: lab
+argocd_apps_path: apps
+
+# Namespaces du socle, interdits aux applications du dépôt : une application ne
+# doit pas pouvoir modifier Kubernetes, le réseau, la Gateway ni Argo CD lui-même.
+argocd_protected_namespaces:
+  - kube-*
+  - calico-*
+  - tigera-operator
+  - metallb-system
+  - envoy-gateway-system
+  - "{{ k8s_gateway_namespace }}"
+  - "{{ argocd_namespace }}"
+
+# Composants d'Argo CD dont on attend le démarrage
+argocd_workloads:
+  - statefulset/argocd-application-controller
+  - deployment/argocd-applicationset-controller
+  - deployment/argocd-dex-server
+  - deployment/argocd-notifications-controller
+  - deployment/argocd-redis
+  - deployment/argocd-repo-server
+  - deployment/argocd-server

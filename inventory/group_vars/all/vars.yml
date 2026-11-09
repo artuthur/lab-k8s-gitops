@@ -18,6 +18,19 @@ k8s_lb_address_range: "192.168.58.50-192.168.58.59"
 k8s_gateway_address: "192.168.58.50"
 k8s_apps_domain: lab.internal
 
+# La Gateway partagée (rôle envoy_gateway), et l'étiquette qu'un namespace doit
+# porter pour y publier des routes. Définies ici parce que d'autres rôles publient
+# aussi des routes (Argo CD).
+k8s_gateway_namespace: gateway
+k8s_gateway_name: lab-gateway
+k8s_gateway_access_label: lab.internal/gateway-access
+
+# GitOps (Argo CD) : le dépôt Git qui décrit les applications, et sa branche.
+# Argo CD lit le dossier apps/ de ce dépôt, et applique au cluster ce qu'il y trouve.
+# Dépôt public : Argo CD le lit sans identifiants.
+k8s_gitops_repo_url: https://github.com/artuthur/lab-k8s-gitops.git
+k8s_gitops_revision: main
+
 # Version mineure de Kubernetes. Elle choisit le dépôt de paquets (pkgs.k8s.io
 # publie un dépôt par version mineure) et servira à kubeadm en phase 3.
 # kubeadm, kubelet et kubectl doivent rester sur la même version mineure.
