@@ -185,7 +185,7 @@
       ansible.builtin.command: >-
         kubectl --kubeconfig {{ argocd_kubeconfig }}
         -n {{ argocd_namespace }}
-        wait --for=condition=ParametersGenerated --timeout=180s applicationset/apps
+        wait --for=condition=ResourcesUpToDate --timeout=240s applicationset/apps
       changed_when: false
 
   rescue:

@@ -163,7 +163,7 @@ Ansible teste donc la présence d'un objet témoin, et n'applique un fichier que
 - modifier le modèle `custom-resources.yaml.j2` après l'installation ne change pas le cluster ;
 - une mise à jour de Calico suit sa procédure officielle, pas un nouveau passage du playbook.
 
-On retrouvera cette question en phase 6 : un outil GitOps comme Argo CD doit savoir qu'un champ est complété par un opérateur, pour ne pas le signaler comme une différence.
+Un outil GitOps comme Argo CD rencontrerait la même question : il doit savoir qu'un champ est complété par un opérateur, pour ne pas le signaler comme une différence. Dans le lab, la question ne se pose pas : Argo CD (phase 6) ne gère que les applications du dossier `apps/`, et Calico reste installé par Ansible.
 
 ### Ce que l'opérateur crée
 

@@ -26,9 +26,9 @@ Deux outils interviennent, sur deux étages différents :
 | Étage | Contenu | Installé par |
 |---|---|---|
 | **Le socle** | Les VMs, leur système, containerd, Kubernetes, Calico, MetalLB, la Gateway | **Ansible** (`ansible-playbook site.yml`) |
-| **Les applications** | whoami aujourd'hui, d'autres demain | **kubectl** aujourd'hui, **Argo CD** en phase 6 |
+| **Les applications** | whoami aujourd'hui, d'autres demain | **Argo CD**, depuis le dépôt Git (phase 6) ; kubectl auparavant |
 
-Ansible n'a donc jamais déployé whoami : c'est la commande `kubectl apply -f apps/whoami/` qui l'a fait. Ansible a seulement installé ce qui permet de l'exposer : MetalLB à l'étape 5a, puis la Gateway à l'étape 5b.
+Ansible n'a donc jamais déployé whoami. Jusqu'à la phase 5, c'est la commande `kubectl apply -f apps/whoami/` qui l'a fait ; depuis la phase 6, c'est Argo CD, qui lit le dossier `apps/` sur GitHub ([le GitOps avec Argo CD](gitops-argocd.md)). Ansible a seulement installé ce qui permet de l'exposer et de le déployer : MetalLB, la Gateway, Argo CD.
 
 Une image pour s'en souvenir : Ansible construit l'immeuble et ses réseaux (eau, électricité, courrier) ; les applications sont les locataires qui emménagent ensuite.
 
@@ -317,7 +317,7 @@ La méthode **déclarative** décrit l'état voulu dans des fichiers, et laisse 
 kubectl apply -f apps/whoami/
 ```
 
-Les fichiers se versionnent dans Git, se relisent, et s'appliquent autant de fois qu'on veut avec le même résultat. C'est la base du GitOps (phase 6).
+Les fichiers se versionnent dans Git, se relisent, et s'appliquent autant de fois qu'on veut avec le même résultat. C'est la base du GitOps : depuis la phase 6, c'est Argo CD qui applique `apps/`, à partir du dépôt.
 
 ### Lire les fichiers de `apps/whoami/`
 
@@ -346,12 +346,15 @@ Les fichiers sont numérotés parce que `kubectl apply -f <dossier>` les traite 
 
 ### Exercice : la boucle déclarative à la main
 
-1. Dans `apps/whoami/02-deployment.yaml`, passe `replicas: 2` à `replicas: 3`.
-2. Demande à kubectl ce qui changerait, sans rien changer : `kubectl diff -f apps/whoami/`. Seule la ligne `replicas` apparaît.
-3. Applique : `kubectl apply -f apps/whoami/`. Un troisième pod démarre.
-4. Remets `replicas: 2` et applique de nouveau.
+Depuis la phase 6, les fichiers de `apps/` sont appliqués par Argo CD : un `kubectl apply` fait à la main y serait annulé en quelques secondes. L'exercice se fait donc sur un fichier à part, dans le namespace `essai` :
 
-Comparer le fichier au cluster, puis appliquer la différence : c'est exactement ce que fera Argo CD, automatiquement et en continu, à partir du dépôt Git.
+1. Produis un fichier de Deployment : `kubectl -n essai create deployment boucle --image=traefik/whoami:v1.12.0 --replicas=2 --dry-run=client -o yaml > /tmp/boucle.yaml`, puis applique-le : `kubectl apply -f /tmp/boucle.yaml`. Le fichier va dans `/tmp`, hors du dépôt, pour ne pas risquer de le commiter.
+2. Dans `/tmp/boucle.yaml`, passe `replicas: 2` à `replicas: 3`.
+3. Demande à kubectl ce qui changerait, sans rien changer : `kubectl diff -f /tmp/boucle.yaml`. Seule la ligne `replicas` apparaît.
+4. Applique : `kubectl apply -f /tmp/boucle.yaml`. Un troisième pod démarre.
+5. Remets `replicas: 2`, applique de nouveau, puis supprime le fichier (le Deployment disparaîtra avec le namespace `essai`, section 8).
+
+Comparer le fichier au cluster, puis appliquer la différence : c'est exactement ce que fait Argo CD, automatiquement et en continu, à partir du dépôt Git. La même modification sur whoami se fait par un commit : voir [travailler en GitOps](gitops-argocd.md#8-travailler-en-gitops).
 
 ## 6. Où ranger les fichiers d'une application ?
 
@@ -365,7 +368,7 @@ Le choix de l'endroit est donc une question d'**organisation**, et il existe tro
 | **Un dépôt par application** | Chaque application garde ses manifestes à côté de son code (souvent dans un dossier `deploy/` ou `k8s/`) | Chaque équipe gère son application de bout en bout |
 | **Un dépôt de configuration dédié** | Un dépôt qui ne contient que l'état voulu du cluster, séparé du code des applications | Le GitOps en entreprise : droits et historique séparés, une seule source de vérité pour le cluster |
 
-Dans le lab, le dossier `apps/` est séparé du reste (les rôles Ansible) précisément pour pouvoir être confié à Argo CD en phase 6 : il surveillera `apps/` dans le dépôt GitHub, et seulement lui.
+Dans le lab, le dossier `apps/` est séparé du reste (les rôles Ansible) précisément pour être confié à Argo CD : depuis la phase 6, il surveille `apps/` dans le dépôt GitHub, et seulement lui. Chaque sous-dossier y devient une application.
 
 ## 7. Diagnostiquer : la boîte à outils
 

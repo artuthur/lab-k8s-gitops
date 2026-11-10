@@ -2,16 +2,16 @@
 
 > Un cluster Kubernetes de trois nœuds monté avec **kubeadm**, entièrement construit par du code (Vagrant + Ansible), puis piloté en **GitOps** : l'état du cluster est décrit dans Git et appliqué automatiquement par Argo CD.
 >
-> **Projet en cours** : phases 1 à 5 terminées. Le cluster est opérationnel (un control plane, deux workers, réseau des pods Calico), et les applications sont publiées derrière un point d'entrée HTTP unique (Gateway API, Envoy Gateway), à une adresse attribuée par MetalLB ; reste le GitOps.
+> **Projet en cours** : phases 1 à 6 terminées. Le cluster est opérationnel (un control plane, deux workers, réseau des pods Calico), les applications sont publiées derrière un point d'entrée HTTP unique (Gateway API, Envoy Gateway), et Argo CD les applique en continu depuis ce dépôt ; restent le test de reproductibilité et la documentation finale.
 
 ## En bref
 
-- **Ce que c'est** : un cluster Kubernetes 1.37 de trois nœuds (un control plane, deux workers) sur des VMs Debian 12, créé avec kubeadm, réseau des pods assuré par Calico, adresses externes attribuées par MetalLB, point d'entrée HTTP unique avec la Gateway API (Envoy Gateway), entièrement provisionné par Ansible, sur un réseau privé dédié.
+- **Ce que c'est** : un cluster Kubernetes 1.37 de trois nœuds (un control plane, deux workers) sur des VMs Debian 12, créé avec kubeadm, réseau des pods assuré par Calico, adresses externes attribuées par MetalLB, point d'entrée HTTP unique avec la Gateway API (Envoy Gateway). Le socle est provisionné par Ansible, sur un réseau privé dédié ; les applications (dossier `apps/`) sont appliquées et surveillées par **Argo CD**, depuis ce dépôt.
 - **Pourquoi kubeadm** : installer moi-même chaque brique (runtime, control plane, réseau des pods, exposition des services) pour comprendre ce qu'une distribution comme k3s fait à ma place.
 - **Contrôlé** : idempotence vérifiée (`changed=0` au second passage), `ansible-lint` en profil `production`, configuration vérifiée après redémarrage, et des contrôles intégrés au playbook qui le font échouer si le résultat n'est pas celui attendu (runtime, résolution de noms, nœuds prêts, adresses utilisées par Kubernetes et par Calico, Gateway opérationnelle et joignable depuis le poste de contrôle). Le rôle de la Gateway a aussi été testé sur un API server Kubernetes avant son premier lancement.
-- **Documenté** : les notions sont expliquées dans des guides dédiés ([le cluster](doc/kubernetes-fondamentaux.md), [le runtime de conteneurs](doc/runtime-et-paquets.md), [kubeadm init et join](doc/cluster-kubeadm.md), [le réseau des pods](doc/reseau-des-pods.md), [déployer une application](doc/deployer-une-application.md), [exposer les services](doc/exposition-des-services.md), [le point d'entrée HTTP](doc/gateway-api.md)), et chaque problème rencontré est décrit dans le [journal de bord](#journal-de-bord).
+- **Documenté** : les notions sont expliquées dans des guides dédiés ([le cluster](doc/kubernetes-fondamentaux.md), [le runtime de conteneurs](doc/runtime-et-paquets.md), [kubeadm init et join](doc/cluster-kubeadm.md), [le réseau des pods](doc/reseau-des-pods.md), [déployer une application](doc/deployer-une-application.md), [exposer les services](doc/exposition-des-services.md), [le point d'entrée HTTP](doc/gateway-api.md), [le GitOps avec Argo CD](doc/gitops-argocd.md)), et chaque problème rencontré est décrit dans le [journal de bord](#journal-de-bord).
 
-**Compétences mises en œuvre** (à ce stade) : Vagrant sur VMware Workstation, Ansible, administration système Linux (noyau, modules, paramètres réseau, ifupdown, dépôts APT signés), containerd et le CRI, kubeadm et la PKI du cluster, réseau des pods avec Calico, exposition des services avec MetalLB, point d'entrée HTTP avec la Gateway API et Envoy Gateway, déploiement d'une application selon les bonnes pratiques de sécurité, diagnostic méthodique. [Liste détaillée](#compétences-démontrées).
+**Compétences mises en œuvre** (à ce stade) : Vagrant sur VMware Workstation, Ansible, administration système Linux (noyau, modules, paramètres réseau, ifupdown, dépôts APT signés), containerd et le CRI, kubeadm et la PKI du cluster, réseau des pods avec Calico, exposition des services avec MetalLB, point d'entrée HTTP avec la Gateway API et Envoy Gateway, GitOps avec Argo CD, déploiement d'une application selon les bonnes pratiques de sécurité, diagnostic méthodique. [Liste détaillée](#compétences-démontrées).
 
 ## Sommaire
 
@@ -36,6 +36,7 @@
   - [04/11/2026 (suite) — Phase 4 : réseau des pods avec Calico](#04112026-suite--phase-4--réseau-des-pods-avec-calico)
   - [06/11/2026 — Phase 5a : adresses externes avec MetalLB](#06112026--phase-5a--adresses-externes-avec-metallb)
   - [09/11/2026 — Phase 5b : point d'entrée HTTP avec la Gateway API](#09112026--phase-5b--point-dentrée-http-avec-la-gateway-api)
+  - [09/11/2026 (suite) — Phase 6 : GitOps avec Argo CD](#09112026-suite--phase-6--gitops-avec-argo-cd)
 - [Compétences démontrées](#compétences-démontrées)
 - Guides détaillés :
   - [Kubernetes : les notions avant les commandes](doc/kubernetes-fondamentaux.md)
@@ -46,6 +47,7 @@
   - [Déployer une application, pas à pas](doc/deployer-une-application.md)
   - [Exposer les services : MetalLB](doc/exposition-des-services.md)
   - [Le point d'entrée HTTP : Gateway API et Envoy Gateway](doc/gateway-api.md)
+  - [Le GitOps avec Argo CD](doc/gitops-argocd.md)
 
 ---
 
@@ -120,7 +122,9 @@ vagrant up
 ./scripts/sync-vagrant-keys.sh
 ansible-playbook site.yml
 ```
-Compter quelques minutes pour la création du cluster (téléchargement des images du control plane). À la fin, le kubeconfig administrateur est copié sur WSL2 dans `~/.kube/lab-k8s-gitops.conf`.
+Compter quelques minutes pour la création du cluster (téléchargement des images du control plane, puis de la Gateway et d'Argo CD). À la fin, le kubeconfig administrateur est copié sur WSL2 dans `~/.kube/lab-k8s-gitops.conf`.
+
+Argo CD lit les applications sur GitHub, dans le dépôt et la branche définis par `k8s_gitops_repo_url` et `k8s_gitops_revision` (`inventory/group_vars/all/vars.yml`) : ce dépôt doit être poussé, et public. Pour une copie de ce projet, y mettre l'adresse de sa propre copie du dépôt.
 
 ### 3. Vérifier
 
@@ -149,13 +153,12 @@ Sur un nœud (`vagrant ssh k8s-worker-01`) :
 
 Le playbook vérifie lui-même l'essentiel : configuration effective de containerd, réponse du CRI, résolution du nom `k8s-api`, présence, état `Ready` et adresse de chaque nœud, aussi bien pour Kubernetes que pour Calico.
 
-### 4. Déployer l'application de démonstration
+### 4. Les applications, déployées par Argo CD
 
-Le playbook installe le socle (dont MetalLB et la Gateway), pas les applications : elles se déploient avec kubectl, depuis WSL2 ([pourquoi, et comment ça marche](doc/deployer-une-application.md)).
+Le playbook installe le socle, dont la Gateway et Argo CD. Argo CD crée ensuite une application par sous-dossier de `apps/` dans le dépôt, et l'applique au cluster : aucun `kubectl apply` n'est nécessaire ([le principe](doc/gitops-argocd.md#1-le-principe--le-dépôt-fait-foi)).
 
 ```bash
-kubectl apply -f apps/whoami/
-kubectl -n demo rollout status deployment/whoami
+kubectl -n argocd get applications          # whoami : Synced, Healthy
 kubectl -n demo get httproute whoami
 for i in $(seq 1 6); do curl -s --resolve whoami.lab.internal:80:192.168.58.50 http://whoami.lab.internal | grep Hostname; done
 ```
@@ -168,8 +171,16 @@ Les requêtes doivent être réparties entre les pods whoami. `--resolve` indiqu
 | `kubectl -n gateway get gateway` | `lab-gateway`, `ADDRESS 192.168.58.50`, `PROGRAMMED True` |
 | `kubectl -n demo describe httproute whoami` | Conditions `Accepted` et `ResolvedRefs` à `True` |
 | `kubectl -n envoy-gateway-system get pods -o wide` | Le contrôleur, et un proxy Envoy (`2/2`) sur chaque worker |
+| `kubectl -n argocd get pods` | Les sept composants d'Argo CD en `Running` |
+| `kubectl -n argocd get application whoami -o jsonpath='{.status.sync.revision}'` | Le même commit que `git rev-parse HEAD` sur `main` |
 
-Lecture détaillée des résultats : [le guide de la Gateway API](doc/gateway-api.md#7-vérifier-et-lire-les-résultats).
+L'interface d'Argo CD : ajouter `192.168.58.50 argocd.lab.internal` au fichier hosts de Windows, ouvrir `http://argocd.lab.internal`, et se connecter avec l'utilisateur `admin` et le mot de passe initial :
+
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo
+```
+
+Modifier une application, c'est la modifier dans le dépôt, puis pousser : voir [travailler en GitOps](doc/gitops-argocd.md#8-travailler-en-gitops). Lecture détaillée des résultats : [la Gateway](doc/gateway-api.md#7-vérifier-et-lire-les-résultats), [Argo CD](doc/gitops-argocd.md#7-vérifier-et-lire-les-résultats).
 
 ### Reconstruire depuis zéro
 
@@ -195,7 +206,7 @@ Si `kubeadm init` ou `kubeadm join` échoue après avoir commencé à écrire de
 | Gateway API 1.6 (canal standard) | Description du point d'entrée HTTP et des routes, commune à toutes les implémentations |
 | Envoy Gateway 1.10 | Mise en œuvre de la Gateway API : un contrôleur, et des proxys Envoy qui reçoivent le trafic |
 | `traefik/whoami` | Application de démonstration : renvoie le nom du pod qui répond |
-| Argo CD | GitOps (phase 6) |
+| Argo CD 3.6 | GitOps : applique en continu le dossier `apps/` du dépôt au cluster, et corrige les écarts |
 
 ## Choix techniques
 
@@ -235,9 +246,16 @@ Si `kubeadm init` ou `kubeadm join` échoue après avoir commencé à écrire de
 | Accès à la Gateway | Seuls les namespaces étiquetés `lab.internal/gateway-access: "true"` peuvent publier des routes | Une application doit demander à être publiée |
 | Domaine des applications | `lab.internal` | `.internal` est réservé par l'ICANN aux réseaux privés : aucun conflit possible avec un vrai domaine |
 | Proxys Envoy | Deux copies, une par worker ; politique `externalTrafficPolicy: Local` (par défaut) | L'adresse du client est conservée ; avec `Local`, MetalLB n'annonce que depuis un nœud qui héberge un proxy : deux proxys pour survivre à la perte d'un nœud |
-| Applications | Manifestes dans `apps/`, appliqués par kubectl (puis par Argo CD en phase 6), pas par Ansible | Séparer le socle (Ansible) des applications ; `apps/` sera le dossier surveillé par Argo CD |
+| Applications | Manifestes dans `apps/`, appliqués par Argo CD, pas par Ansible | Séparer le socle (Ansible) des applications, dont le cycle de vie suit le dépôt |
 | Application de démonstration | Namespace en Pod Security `restricted`, exécution sans root, sondes, ressources, répartition sur les nœuds ; Service `ClusterIP`, publié sous `whoami.lab.internal` par une HTTPRoute | Appliquer les bonnes pratiques dès la première application ([détail des réglages](doc/deployer-une-application.md#lire-les-fichiers-de-appswhoami)) |
-| GitOps | Argo CD | Le plus répandu, interface qui rend la réconciliation visible |
+| GitOps | Argo CD v3.6.1 (testé sur Kubernetes 1.34 à 1.37), manifeste non haute disponibilité | Le plus répandu ; son interface rend la réconciliation visible ([explication](doc/gitops-argocd.md#1-le-principe--le-dépôt-fait-foi)) |
+| Installation d'Argo CD | Entièrement déclarative : manifeste comparé au cluster et réappliqué s'il diffère | Aucun objet du manifeste n'est réécrit par un contrôleur, et la mise à jour officielle consiste à le réappliquer ([comparaison avec les autres composants](doc/gitops-argocd.md#une-installation-entièrement-déclarative)) |
+| Réglages d'Argo CD | Appliqués côté serveur sous un gestionnaire de champs distinct (`lab-k8s-gitops`) | Nos clés vivent dans des ConfigMaps du manifeste officiel : chaque source ne réécrit que ses propres champs |
+| Accès à l'interface | `argocd.lab.internal`, par la Gateway ; `argocd-server` en HTTP simple (`server.insecure`), réglé avant son premier démarrage | La méthode d'Argo CD pour un point d'entrée Gateway API |
+| Applications du dépôt | Un ApplicationSet (générateur Git) : une application par sous-dossier de `apps/` | Ajouter une application, c'est ajouter un dossier |
+| Garde-fous | Projet `lab` : une seule source (ce dépôt), namespaces du socle interdits, seul objet sans namespace permis : `Namespace` | Une application ne peut ni modifier le socle, ni s'attribuer des droits sur tout le cluster |
+| Synchronisation | Automatique, avec `prune`, `selfHeal` et nouvelles tentatives ; pas de suppression en cascade | Le dépôt fait foi, et une modification à la main est annulée ; un dossier retiré par erreur ne supprime pas une application en service |
+| Accès au dépôt | Dépôt public, lu en HTTPS sans identifiants | Aucun secret à gérer dans le lab |
 
 ## Sécurité et limites
 
@@ -251,14 +269,17 @@ Si `kubeadm init` ou `kubeadm join` échoue après avoir commencé à écrire de
 | Paquets bloqués | containerd et Kubernetes ne reçoivent aucune mise à jour automatique, y compris de sécurité | Veille sur les vulnérabilités et mises à jour planifiées, nœud par nœud |
 | Certificats valables un an | Les certificats des composants expirent un an après la création du cluster (la CA, dix ans) | Renouvellement par `kubeadm certs renew` ou lors des mises à jour (`kubeadm upgrade`), et supervision des dates d'expiration |
 | Accès administrateur complet sur WSL2 | Le kubeconfig copié sur WSL2 donne tous les droits sur le cluster | Comptes nominatifs aux droits limités (RBAC), authentification par l'annuaire de l'entreprise (OIDC) |
-| Aucune politique réseau | Sans NetworkPolicy, tout pod peut joindre tout autre pod | Politiques par namespace, avec un refus par défaut et des autorisations explicites |
+| Politiques réseau limitées à Argo CD | Seules les sept NetworkPolicies du manifeste d'Argo CD existent : ailleurs, tout pod peut joindre tout autre pod | Politiques par namespace, avec un refus par défaut et des autorisations explicites |
 | Calico, MetalLB et Envoy Gateway installés une seule fois | Le playbook n'applique pas les nouvelles versions des contrôleurs, ni les modifications ultérieures de la configuration de Calico (celles de MetalLB et de la Gateway, et les CRD de la Gateway API, sont tenues à jour) | Procédure de mise à jour, ou gestion par un outil GitOps qui tient compte des champs complétés par les contrôleurs |
 | Mode L2 : un seul nœud par adresse | Tout le trafic d'une adresse externe entre par le nœud élu ; en cas de panne, la bascule prend quelques secondes | Mode BGP de MetalLB avec les routeurs du réseau, ou équilibreur de charge du fournisseur cloud |
 | Adresse du client masquée pour les Services `LoadBalancer` directs | Avec `externalTrafficPolicy: Cluster`, les pods voient une adresse du nœud. Réglé pour le trafic HTTP : la Gateway conserve l'adresse et la transmet dans `X-Forwarded-For` | `Local` pour les autres Services qui en ont besoin |
 | Pas de HTTPS | Le trafic HTTP circule en clair jusqu'à la Gateway | Écouteur HTTPS sur la Gateway, certificats délivrés et renouvelés par cert-manager |
 | Résolution des noms à la main | `curl --resolve` ou fichier hosts de Windows, une ligne par application | Serveur DNS interne, alimenté à partir des routes (external-dns) |
 | Envoy Gateway 1.10.0 très récent | Publié quatre jours avant son installation, faute de version plus ancienne testée sur Kubernetes 1.37 | Attendre les premiers correctifs avant une mise en production |
-| Application déployée à la main | `kubectl apply` depuis WSL2 : rien n'empêche l'état réel de s'écarter des fichiers | GitOps : Argo CD applique et surveille les fichiers du dépôt (phase 6) |
+| Interface d'Argo CD en HTTP, compte `admin` local | Le mot de passe d'administration circule en clair jusqu'à la Gateway ; un seul compte, tous les droits | HTTPS sur la Gateway ; connexion par l'annuaire de l'entreprise (SSO), droits par équipe, compte `admin` désactivé |
+| Dépôt public, relu toutes les trois minutes | La configuration des applications est lisible par tous ; un `git push` met jusqu'à trois minutes à s'appliquer | Dépôt privé avec une clé de déploiement en lecture seule ; webhook de GitHub vers Argo CD (impossible ici : GitHub ne peut pas joindre le réseau du lab) |
+| Argo CD sans haute disponibilité, installé par Ansible | Une copie de chaque composant ; Argo CD ne se gère pas lui-même | Manifeste haute disponibilité, trois nœuds au moins ; Argo CD géré depuis le dépôt (modèle « app of apps »), Ansible ne servant qu'à l'amorçage |
+| Pas de gestion des secrets | Aucun secret ne doit être commité en clair dans le dépôt | Sealed Secrets ou External Secrets |
 | Observabilité réseau non installée | Goldmane et Whisker (visualisation des flux), prévus par la configuration officielle, sont laissés de côté | À installer avec les premières politiques réseau |
 
 ## Structure du projet
@@ -287,8 +308,9 @@ lab-k8s-gitops/
 │   ├── calico/                  Réseau des pods : manifestes vérifiés, opérateur, configuration
 │   ├── metallb/                 Adresses externes : manifeste vérifié, pool et annonce L2
 │   ├── envoy_gateway/           Point d'entrée HTTP : CRD de la Gateway API, contrôleur, Gateway
+│   ├── argocd/                  GitOps : Argo CD, sa route, le projet et l'ApplicationSet des applications
 │   └── cluster_verify/          Contrôle des nœuds : enregistrement, état Ready, adresses
-├── apps/                        Applications, appliquées par kubectl (Argo CD en phase 6)
+├── apps/                        Applications, appliquées par Argo CD (une par sous-dossier)
 │   └── whoami/
 │       ├── 01-namespace.yaml    Namespace demo, Pod Security restricted
 │       ├── 02-deployment.yaml   Deux copies, sans root, sondes et ressources
@@ -305,7 +327,8 @@ lab-k8s-gitops/
     ├── deployer-une-application.md  Guide pas à pas : namespace, Deployment, Service
     ├── exposition-des-services.md   Guide de l'exposition des services avec MetalLB
     ├── gateway-api.md               Guide du point d'entrée HTTP (Gateway API, Envoy Gateway)
-    └── images/                      Schémas
+    ├── gitops-argocd.md             Guide du GitOps avec Argo CD
+    └── images/                      Schémas et captures d'écran
 ```
 
 ## Avancement
@@ -317,7 +340,7 @@ lab-k8s-gitops/
 - [x] Phase 5 : exposition des services
   - [x] 5a : adresses externes (MetalLB) et application de démonstration, joignable depuis Windows
   - [x] 5b : point d'entrée HTTP unique (Gateway API, Envoy Gateway), adresse du client conservée
-- [ ] Phase 6 : GitOps (Argo CD)
+- [x] Phase 6 : GitOps (Argo CD), autocorrection et modification par Git vérifiées
 - [ ] Phase 7 : test de reproductibilité et documentation finale
 
 ## Journal de bord
@@ -974,6 +997,138 @@ Sur le control plane, `skipped=12` : les neuf tâches ignorées de l'étape 5a, 
 
 ---
 
+### 09/11/2026 (suite) — Phase 6 : GitOps avec Argo CD
+
+#### Les notions
+
+Les notions de cette phase sont détaillées, avec un schéma, dans le guide [Le GitOps avec Argo CD](doc/gitops-argocd.md). L'essentiel :
+
+- Jusqu'ici, une application se déployait par `kubectl apply` : un modèle **poussé et ponctuel**, où personne ne vérifie ensuite que le cluster reste conforme. Avec le **GitOps**, l'état voulu est versionné dans Git, et un agent qui tourne **dans** le cluster le **tire** et le **réconcilie en continu**. Le dépôt fait foi.
+- **Argo CD** est cet agent. Ses composants principaux : l'`applicationset-controller` (crée les applications), le `repo-server` (lit le dépôt), l'`application-controller` (compare et synchronise) et l'`argocd-server` (l'interface).
+- Ses trois objets : l'**Application** (« ce dossier de ce dépôt, appliqué à ce cluster »), l'**ApplicationSet** (un modèle d'Application, rempli par un générateur) et l'**AppProject** (les règles d'un groupe d'applications).
+- Une application a deux états indépendants : sa **synchronisation** (`Synced` ou `OutOfSync` : le cluster est-il conforme au dépôt ?) et sa **santé** (`Healthy`, `Progressing`, `Degraded`, `Missing` : ce qui tourne fonctionne-t-il ?).
+
+![La boucle GitOps d'Argo CD](doc/images/boucle-gitops.svg)
+
+#### Les décisions
+
+- **Argo CD v3.6.1**, la version testée sur Kubernetes 1.37, avec le manifeste officiel « non haute disponibilité » (une copie de chaque composant). Empreinte SHA-256 vérifiée, calculée par script.
+- **Une installation entièrement déclarative**, contrairement à Calico, MetalLB et Envoy Gateway. Aucun objet du manifeste n'est réécrit par un contrôleur, et la procédure officielle de mise à jour est justement de réappliquer le manifeste : une montée de version suffit.
+- **Deux gestionnaires de champs.** Nos réglages se trouvent dans des ConfigMaps qui existent aussi dans le manifeste officiel. Appliqués côté serveur sous un nom distinct (`lab-k8s-gitops`), ils ne peuvent pas être effacés par une réapplication du manifeste : l'API server note, champ par champ, qui l'a écrit.
+- **L'interface par la Gateway**, sous `argocd.lab.internal`, avec `argocd-server` en HTTP simple (`server.insecure`), la méthode décrite par Argo CD pour un point d'entrée Gateway API. Ce réglage est posé avant le premier démarrage du serveur ; s'il change, le rôle le redémarre.
+- **Un ApplicationSet à générateur Git** : une application par sous-dossier de `apps/`. Ajouter une application, c'est ajouter un dossier et pousser.
+- **Des garde-fous**, dans le projet `lab` : une seule source (ce dépôt), les namespaces du socle interdits (`kube-*`, `calico-*`, MetalLB, la Gateway, Argo CD), et un seul type d'objet sans namespace permis, `Namespace`.
+- **Une synchronisation automatique** avec `prune` (un objet retiré du dépôt est retiré du cluster), `selfHeal` (une modification faite à la main est annulée) et des nouvelles tentatives. **Pas de suppression en cascade** : un dossier retiré par erreur supprime l'Application, mais pas une application en service.
+- **Un dépôt public**, lu sans identifiants : poussé sur GitHub avant le lancement, après vérification que `.gitignore` exclut l'état de Vagrant, les clés et les kubeconfig.
+- **Le niveau Pod Security `restricted`** sur le namespace `argocd`, après vérification de l'admission des sept composants. Le manifeste apporte aussi les **sept premières NetworkPolicies** du cluster, que Calico applique.
+
+#### Les problèmes rencontrés
+
+**1. Tester avant le premier lancement.**
+
+Comme pour la Gateway, j'ai fait tourner le rôle sur un API server Kubernetes 1.37 réel, avec un script qui jouait les contrôleurs d'Argo CD. Le test a vérifié :
+
+- l'idempotence (`changed=6`, puis `changed=0`) ;
+- l'admission des sept composants au niveau `restricted` ;
+- la cohabitation des deux gestionnaires de champs : `argocd-cm` contient les clés du manifeste et la nôtre ;
+- l'absence de différence après les écritures d'Argo CD lui-même (ses secrets, un redémarrage de composant) ;
+- le redémarrage d'`argocd-server` après un changement de réglage, et la disparition d'un réglage retiré du modèle ;
+- le rendu du modèle de l'ApplicationSet : Ansible et Argo CD utilisent la même syntaxe `{{ }}`, et le modèle Ansible protège celle d'Argo CD par `{% raw %}` ;
+- le message d'erreur du rôle quand le dépôt est illisible.
+
+**2. L'application créée trois minutes après l'ApplicationSet.**
+
+Le premier passage du playbook s'est arrêté sur le message du rôle « Argo CD n'arrive pas à lire le dépôt », alors que le dépôt était public et poussé sur la bonne branche. Relancé quelques secondes plus tard, il est passé sans erreur.
+
+Dans l'interface, l'ApplicationSet `apps` a été créé à 14:27:13, et l'application `whoami` à 14:30:19 : la première lecture du dépôt par le générateur avait échoué, et la suivante avait réussi. En lisant le code d'Argo CD, j'ai trouvé l'explication du délai : quand la génération échoue, l'ApplicationSet réessaie **trois minutes plus tard** (constante `ReconcileRequeueOnValidationError`). L'attente du rôle, lancée juste après la création de l'ApplicationSet, s'est terminée au bout de 180 secondes, quatre secondes avant ce second essai : le second passage du playbook a trouvé l'application déjà créée.
+
+Le rôle attendait 180 secondes : trop juste pour encaisser un essai manqué. Il attend désormais 240 secondes, et sur l'état `ResourcesUpToDate`, qu'Argo CD ne publie qu'**après** la création des applications. L'attente précédente portait sur `ParametersGenerated`, publié dès la lecture du dépôt. Le nouveau rôle a été testé sur l'API server, avec un premier essai simulé sans résultat.
+
+#### Les vérifications et leur interprétation
+
+**Les composants et l'application :**
+
+```
+$ kubectl -n argocd get pods -o wide
+NAME                                                READY   STATUS    NODE
+argocd-application-controller-0                     1/1     Running   k8s-worker-01
+argocd-applicationset-controller-794bb95c9d-d67xr   1/1     Running   k8s-worker-01
+argocd-dex-server-66cf64bfcf-pgvsp                  1/1     Running   k8s-worker-02
+argocd-notifications-controller-5878c8d644-rstq9    1/1     Running   k8s-worker-02
+argocd-redis-5869b7547-vms5h                        1/1     Running   k8s-worker-02
+argocd-repo-server-7d55cc466b-75cmj                 1/1     Running   k8s-worker-01
+argocd-server-85b849c688-fnjqg                      1/1     Running   k8s-worker-02
+$ kubectl -n argocd get applications
+NAME     SYNC STATUS   HEALTH STATUS
+whoami   Synced        Healthy
+```
+
+Les sept composants tournent, répartis sur les deux workers. L'application `whoami`, créée par l'ApplicationSet, est conforme au dépôt (`Synced`) et fonctionne (`Healthy`).
+
+**Argo CD applique exactement le dernier commit :**
+
+```
+$ kubectl -n argocd get application whoami -o jsonpath='{.status.sync.revision}{"\n"}'; git rev-parse HEAD
+45a26cfe55fb73083c44d82458ef5a0c58f22703
+45a26cfe55fb73083c44d82458ef5a0c58f22703
+```
+
+**Les objets existants ont été adoptés :**
+
+```
+$ kubectl -n demo get deployment whoami -o jsonpath='{.metadata.annotations.argocd\.argoproj\.io/tracking-id}{"\n"}'
+whoami:apps/Deployment:demo/whoami
+```
+
+L'annotation de suivi (`<application>:<groupe>/<type>:<namespace>/<nom>`) montre qu'Argo CD considère le Deployment comme le sien. Les objets créés à la main aux phases 5a et 5b n'ont pas été recréés : dans l'interface, le namespace, le Service et le Deployment ont « 3 days », et les pods n'ont pas redémarré.
+
+**La route et les politiques réseau :** `curl --resolve argocd.lab.internal:80:192.168.58.50 http://argocd.lab.internal/healthz` répond `200`, et `kubectl -n argocd get networkpolicies` liste les sept politiques du manifeste.
+
+**L'interface**, à `http://argocd.lab.internal` après l'ajout du nom au fichier hosts de Windows :
+
+- l'ApplicationSet `apps` est `Healthy`, avec une application ;
+- l'application `whoami` (projet `lab`, chemin `apps/whoami`, branche `main`) est `Healthy` et `Synced`, avec la synchronisation automatique active ;
+- l'arbre de l'application montre ses quatre objets, le ReplicaSet et les deux pods.
+
+![L'arbre de l'application whoami dans l'interface d'Argo CD](doc/images/argocd-arbre-application.png)
+
+**L'autocorrection et la modification par Git**, lues dans les événements du Deployment :
+
+| Heure | Événement | Ce qui s'est passé |
+|---|---|---|
+| 14:40 | 2 vers 10, puis 10 vers 2 | `kubectl scale --replicas=10` à la main : Argo CD rétablit les 2 copies du dépôt dans la même minute (`selfHeal`) |
+| 14:40 | 2 vers 3, puis 3 vers 2 | Le même essai avec 3 copies |
+| 14:44 | 2 vers 3 | Le commit « whoami : 3 copies », poussé sur GitHub et appliqué par Argo CD |
+| 14:45 | 3 vers 2 | Le commit « Revert "whoami : 3 copies" » : retour en arrière **par Git**. L'interface affiche `Synced to main (a7efbc1)` et `Sync OK` avec le message de ce commit |
+
+![Les événements du Deployment whoami](doc/images/argocd-evenements-deployment.png)
+
+Ces événements viennent du `deployment-controller` de Kubernetes, et non d'Argo CD. Argo CD change le nombre de copies voulu, puis Kubernetes ajuste le ReplicaSet et les pods : ce sont deux boucles de réconciliation, l'une dans l'autre.
+
+**Idempotence**, au second passage du playbook :
+
+```
+k8s-cp-01      : ok=96   changed=0    unreachable=0    failed=0    skipped=17
+k8s-worker-01  : ok=36   changed=0    unreachable=0    failed=0    skipped=9
+k8s-worker-02  : ok=36   changed=0    unreachable=0    failed=0    skipped=8
+```
+
+Sur le control plane, `skipped=17` : les douze tâches ignorées de l'étape 5b, plus les cinq du rôle `argocd` qui n'avaient rien à faire. Les quatre applications n'ont trouvé aucune différence, et `argocd-server` n'avait pas à être redémarré.
+
+**Qualité :** `ansible-lint --profile production` passe sans erreur ni avertissement.
+
+#### Validation
+
+- Argo CD applique au cluster le contenu du dossier `apps/` du dépôt, exactement au dernier commit.
+- Une modification faite à la main dans le cluster est annulée en moins d'une minute.
+- Une modification et son retour en arrière passent par Git, avec leur historique.
+- Les objets existants ont été adoptés sans interruption de service.
+- Le rôle est idempotent, et vérifie lui-même l'interface, la lecture du dépôt et la création des applications.
+
+**Prochaine étape :** phase 7, le test de reproductibilité (destruction et reconstruction complètes, chronométrées) et la documentation finale.
+
+---
+
 <!-- Les prochaines entrées seront ajoutées ici, dans le même format -->
 
 ## Compétences démontrées
@@ -1011,3 +1166,7 @@ Sur le control plane, `skipped=12` : les neuf tâches ignorées de l'étape 5a, 
 - Test d'un rôle Ansible contre un API server Kubernetes réel (etcd et kube-apiserver d'envtest) avant le premier lancement, avec simulation des états publiés par le contrôleur
 - Conservation de l'adresse du client (`externalTrafficPolicy: Local`, `X-Forwarded-For`) et disponibilité du point d'entrée (proxys répartis sur les workers, annonce MetalLB limitée aux nœuds qui les hébergent)
 - Lecture du code source d'un contrôleur (Envoy Gateway) pour vérifier ses comportements par défaut : politique de trafic, contextes de sécurité, nommage des ressources, répartition de charge
+- Mise en place du GitOps avec Argo CD : Application, ApplicationSet (générateur Git : une application par dossier), AppProject (sources, destinations et types d'objets permis), synchronisation automatique avec `prune`, `selfHeal` et nouvelles tentatives
+- Adoption sans interruption d'objets existants par Argo CD, et vérification de la chaîne de bout en bout (commit appliqué identique au dernier commit, autocorrection, retour arrière par `git revert`)
+- Application côté serveur et gestionnaires de champs (`managedFields`) pour faire cohabiter, dans les mêmes objets, les réglages du manifeste officiel et ceux du projet
+- Choix argumenté de la méthode d'installation de chaque composant (une seule fois ou déclarative) selon le comportement de ses contrôleurs et sa procédure de mise à jour
