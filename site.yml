@@ -1,4 +1,17 @@
 ---
+# Des VMs tout juste créées peuvent rester injoignables quelques secondes après la
+# fin de « vagrant up » : lors de la reconstruction du 10/11/2026, le premier passage
+# n'a pu joindre qu'un nœud sur trois, et il a fallu relancer le playbook. Attendre
+# la connexion SSH de chaque nœud, plutôt que d'échouer au premier essai.
+# Pas de collecte des faits ici : elle échouerait sur un nœud encore injoignable.
+- name: Attendre que les nœuds soient joignables
+  hosts: k8s_cluster
+  gather_facts: false
+  tasks:
+    - name: Attendre la connexion SSH à chaque nœud
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+
 - name: Configuration de base de tous les nœuds
   hosts: k8s_cluster
   become: true
