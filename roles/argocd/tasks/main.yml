@@ -178,10 +178,14 @@
   delegate_to: localhost
   become: false
 
-# ParametersGenerated : le générateur a lu le dépôt et listé les dossiers de apps/.
+# ResourcesUpToDate : le générateur a lu le dépôt, listé les dossiers de apps/, et
+# créé ou mis à jour les applications correspondantes.
+# Si une lecture échoue, l'ApplicationSet réessaie trois minutes plus tard
+# (ReconcileRequeueOnValidationError, dans le code d'Argo CD) : l'attente dure plus
+# longtemps, pour laisser sa chance à ce second essai.
 - name: Vérifier qu'Argo CD lit le dépôt Git
   block:
-    - name: Attendre que l'ApplicationSet ait lu le dépôt
+    - name: Attendre que l'ApplicationSet ait créé les applications
       ansible.builtin.command: >-
         kubectl --kubeconfig {{ argocd_kubeconfig }}
         -n {{ argocd_namespace }}

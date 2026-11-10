@@ -5,3 +5,9 @@ kubeadm_join_config_path: /etc/kubernetes/kubeadm-join.yaml
 
 # Durée de vie du jeton d'amorçage créé pour les workers à ajouter.
 kubeadm_join_token_ttl: 30m
+
+# Masquer la sortie de la création du jeton : elle contient le jeton lui-même, qui
+# permet à n'importe quelle machine de rejoindre le cluster tant qu'il est valable.
+# Pour diagnostiquer un échec de cette tâche (son message d'erreur est masqué lui
+# aussi), relancer ponctuellement avec : -e kubeadm_join_no_log=false
+kubeadm_join_no_log: true

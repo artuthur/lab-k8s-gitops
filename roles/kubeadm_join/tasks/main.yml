@@ -27,7 +27,7 @@
   when: >-
     ansible_play_hosts | map('extract', hostvars, 'kubeadm_join_needed')
     | map('bool') | select | list | length > 0
-  no_log: false
+  no_log: "{{ kubeadm_join_no_log }}"
 
 - name: Rejoindre le cluster
   when: kubeadm_join_needed | bool

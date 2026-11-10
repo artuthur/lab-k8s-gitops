@@ -1,0 +1,16 @@
+# Règles communes aux éditeurs (VS Code : extension EditorConfig) : elles évitent
+# les fichiers sans retour à la ligne final, que refuse ansible-lint, et les fins
+# de ligne Windows (CRLF), dans un dépôt édité depuis Windows et exécuté sous Linux.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# En Markdown, deux espaces en fin de ligne forcent un retour à la ligne
+[*.md]
+trim_trailing_whitespace = false

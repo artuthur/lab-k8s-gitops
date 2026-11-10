@@ -1,6 +1,7 @@
-# Service de type ClusterIP : il reçoit une adresse interne
-# (ClusterIP) et un port ouvert sur chaque nœud (NodePort). L'accès depuis l'extérieur passe par la Gateway du cluster,
-# à laquelle la route de 04-httproute.yaml confie le nom whoami.lab.internal.
+# Service de type ClusterIP : il reçoit seulement une adresse interne, joignable
+# depuis l'intérieur du cluster (pas de NodePort ni d'adresse externe). L'accès
+# depuis l'extérieur passe par la Gateway du cluster, à laquelle la route de
+# 04-httproute.yaml confie le nom whoami.lab.internal.
 apiVersion: v1
 kind: Service
 metadata:
