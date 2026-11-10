@@ -2,13 +2,13 @@
 
 > Un cluster Kubernetes de trois nœuds monté avec **kubeadm**, entièrement construit par du code (Vagrant + Ansible), puis piloté en **GitOps** : l'état du cluster est décrit dans Git et appliqué automatiquement par Argo CD.
 >
-> **Projet en cours** : phases 1 à 6 terminées. Le cluster est opérationnel (un control plane, deux workers, réseau des pods Calico), les applications sont publiées derrière un point d'entrée HTTP unique (Gateway API, Envoy Gateway), et Argo CD les applique en continu depuis ce dépôt ; le lab a été détruit puis reconstruit depuis ce dépôt en 15 min 29 s (phase 7, en cours : seconde reconstruction pour valider les corrections qu'a révélées la première).
+> **Projet terminé le 10/11/2026.** Le cluster (un control plane, deux workers, réseau des pods Calico) publie ses applications derrière un point d'entrée HTTP unique (Gateway API, Envoy Gateway), et Argo CD les applique en continu depuis ce dépôt. Détruit puis reconstruit depuis ce dépôt, le lab revient entièrement, application comprise, en **15 minutes, sans aucune intervention manuelle**.
 
 ## En bref
 
 - **Ce que c'est** : un cluster Kubernetes 1.37 de trois nœuds (un control plane, deux workers) sur des VMs Debian 12, créé avec kubeadm, réseau des pods assuré par Calico, adresses externes attribuées par MetalLB, point d'entrée HTTP unique avec la Gateway API (Envoy Gateway). Le socle est provisionné par Ansible, sur un réseau privé dédié ; les applications (dossier `apps/`) sont appliquées et surveillées par **Argo CD**, depuis ce dépôt.
 - **Pourquoi kubeadm** : installer moi-même chaque brique (runtime, control plane, réseau des pods, exposition des services) pour comprendre ce qu'une distribution comme k3s fait à ma place.
-- **Contrôlé** : idempotence vérifiée (`changed=0` au second passage), `ansible-lint` en profil `production`, configuration vérifiée après redémarrage, et des contrôles intégrés au playbook qui le font échouer si le résultat n'est pas celui attendu (runtime, résolution de noms, nœuds prêts, adresses utilisées par Kubernetes et par Calico, Gateway opérationnelle et joignable depuis le poste de contrôle). Les rôles de la Gateway et d'Argo CD ont aussi été testés sur un API server Kubernetes avant leur premier lancement. Un script (`scripts/verifier-lab.sh`) vérifie tout le lab en une commande, et le lab a été reconstruit depuis zéro, chronomètre en main.
+- **Contrôlé** : idempotence vérifiée (`changed=0` au second passage), `ansible-lint` en profil `production`, configuration vérifiée après redémarrage, et des contrôles intégrés au playbook qui le font échouer si le résultat n'est pas celui attendu (runtime, résolution de noms, nœuds prêts, adresses utilisées par Kubernetes et par Calico, Gateway opérationnelle et joignable depuis le poste de contrôle). Les rôles de la Gateway et d'Argo CD ont aussi été testés sur un API server Kubernetes avant leur premier lancement. Un script (`scripts/verifier-lab.sh`) vérifie tout le lab en une commande. Le lab a été reconstruit deux fois depuis zéro, chronomètre en main : la seconde fois en 15 min 02 s, sans aucune intervention, et il revient de lui-même en 4 minutes après un redémarrage à froid.
 - **Documenté** : les notions sont expliquées dans des guides dédiés ([le cluster](doc/kubernetes-fondamentaux.md), [le runtime de conteneurs](doc/runtime-et-paquets.md), [kubeadm init et join](doc/cluster-kubeadm.md), [le réseau des pods](doc/reseau-des-pods.md), [déployer une application](doc/deployer-une-application.md), [exposer les services](doc/exposition-des-services.md), [le point d'entrée HTTP](doc/gateway-api.md), [le GitOps avec Argo CD](doc/gitops-argocd.md)), et chaque problème rencontré est décrit dans le [journal de bord](#journal-de-bord).
 
 **Compétences mises en œuvre** (à ce stade) : Vagrant sur VMware Workstation, Ansible, administration système Linux (noyau, modules, paramètres réseau, ifupdown, dépôts APT signés), containerd et le CRI, kubeadm et la PKI du cluster, réseau des pods avec Calico, exposition des services avec MetalLB, point d'entrée HTTP avec la Gateway API et Envoy Gateway, GitOps avec Argo CD, déploiement d'une application selon les bonnes pratiques de sécurité, diagnostic méthodique. [Liste détaillée](#compétences-démontrées).
@@ -24,6 +24,7 @@
 **Pour aller plus loin**
 - [Choix techniques](#choix-techniques)
 - [Sécurité et limites](#sécurité-et-limites)
+- [Pistes d'évolution](#pistes-dévolution)
 - [Structure du projet](#structure-du-projet)
 - [Avancement](#avancement)
 - [Journal de bord](#journal-de-bord)
@@ -217,7 +218,15 @@ ansible-playbook site.yml
 
 Vagrant génère de nouvelles clés SSH à chaque création de VM : le script de synchronisation est à relancer. Le cluster recréé a une nouvelle CA : le kubeconfig de WSL2 est réécrit par le playbook. Argo CD redéploie seul les applications depuis le dépôt, et son mot de passe `admin` initial est nouveau.
 
-Mesuré le 10/11/2026 : **15 min 29 s** entre le lancement de `vagrant up` et « Tout est opérationnel » (`vagrant up` : 3 min 33 s ; playbook : 9 min 24 s, dont 46 % d'attente de Calico, c'est-à-dire de téléchargement d'images). Détail dans le [journal de la phase 7](#10112026--phase-7--test-de-reproductibilité).
+Mesuré le 10/11/2026, entre le lancement de `vagrant up` et « Tout est opérationnel » :
+
+| Essai | Durée | Interventions manuelles |
+|---|---|---|
+| Première reconstruction | 15 min 29 s | Une relance du playbook, deux nœuds n'étant pas encore joignables ; corrigé depuis (premier play qui attend la connexion SSH) |
+| Seconde reconstruction | **15 min 02 s** (`vagrant up` : 3 min 34 s ; playbook : 10 min 29 s, dont 43 % d'attente de Calico, c'est-à-dire de téléchargement d'images) | **Aucune** |
+| Redémarrage à froid (`vagrant halt`, puis `vagrant up`) | **4 min 14 s** après la fin de `vagrant up`, sans playbook | Aucune |
+
+Détail dans le [journal de la phase 7](#10112026--phase-7--test-de-reproductibilité).
 
 Si `kubeadm init` ou `kubeadm join` échoue après avoir commencé à écrire des fichiers, remettre le nœud à zéro avant de relancer le playbook : `vagrant ssh <nœud>`, puis `sudo kubeadm reset -f`.
 
@@ -314,8 +323,22 @@ Si `kubeadm init` ou `kubeadm join` échoue après avoir commencé à écrire de
 | Argo CD sans haute disponibilité, installé par Ansible | Une copie de chaque composant ; Argo CD ne se gère pas lui-même | Manifeste haute disponibilité, trois nœuds au moins ; Argo CD géré depuis le dépôt (modèle « app of apps »), Ansible ne servant qu'à l'amorçage |
 | Pas de gestion des secrets | Aucun secret ne doit être commité en clair dans le dépôt | Sealed Secrets ou External Secrets |
 | Reconstruction dominée par le téléchargement des images | Sur des VMs neuves, chaque nœud télécharge toutes ses images : l'attente de Calico représente à elle seule 46 % du playbook | Miroir de registre local, ou images de VM préparées à l'avance avec les conteneurs (Packer) |
-| Retour après un redémarrage à froid non mesuré | Après un `vagrant halt` suivi d'un `vagrant up`, un proxy Envoy est resté indisponible plus de dix minutes avant de revenir seul (cause non établie) | Mesure du temps de retour à la normale, et alerte si un composant reste indisponible |
+| Retour après un redémarrage à froid | Mesuré à 4 min 14 s. Une fois, après un arrêt d'une nuit, un proxy Envoy est resté indisponible plus de dix minutes avant de revenir seul ; non reproduit, cause non établie | Supervision qui alerte quand un composant reste indisponible (le rôle que joue ici `verifier-lab.sh`, mais en continu) |
 | Observabilité réseau non installée | Goldmane et Whisker (visualisation des flux), prévus par la configuration officielle, sont laissés de côté | À installer avec les premières politiques réseau |
+
+## Pistes d'évolution
+
+Par ordre de priorité, en partant des limites ci-dessus :
+
+| Piste | Pourquoi |
+|---|---|
+| HTTPS sur la Gateway, avec cert-manager et une autorité de certification interne | Supprime la principale limite : l'interface d'Argo CD et son mot de passe circulent en clair. Reprend la PKI de `lab-cicd-pipeline` |
+| Politiques réseau par défaut (refus, puis autorisations explicites), avec Whisker pour visualiser les flux | Aujourd'hui, seuls les composants d'Argo CD sont protégés par des NetworkPolicies |
+| Supervision : Prometheus et Grafana, déployés par Argo CD | Remplacer la vérification ponctuelle de `verifier-lab.sh` par une surveillance continue, avec alertes |
+| Mise à jour du cluster (`kubeadm upgrade`, vers Kubernetes 1.38) | La maintenance d'un cluster en production : mise à jour nœud par nœud, sans interrompre les applications |
+| Argo CD géré par lui-même (modèle « app of apps »), et premiers charts Helm | Réduire Ansible à l'amorçage, et tenir tout le reste dans le dépôt |
+| Gestion des secrets (Sealed Secrets ou External Secrets) | Prérequis à toute application qui a besoin d'un mot de passe |
+| Control plane hautement disponible (trois nœuds, et une adresse virtuelle devant l'API server) | La limite d'architecture principale, au prix de deux VMs de plus |
 
 ## Structure du projet
 
@@ -378,10 +401,10 @@ lab-k8s-gitops/
   - [x] 5a : adresses externes (MetalLB) et application de démonstration, joignable depuis Windows
   - [x] 5b : point d'entrée HTTP unique (Gateway API, Envoy Gateway), adresse du client conservée
 - [x] Phase 6 : GitOps (Argo CD), autocorrection et modification par Git vérifiées
-- [ ] Phase 7 : test de reproductibilité et documentation finale
+- [x] Phase 7 : test de reproductibilité et documentation finale
   - [x] Première reconstruction depuis zéro, chronométrée (15 min 29 s), et corrections qu'elle a révélées
-  - [ ] Seconde reconstruction, sans aucune intervention manuelle, et redémarrage à froid
-  - [ ] Documentation finale
+  - [x] Seconde reconstruction sans aucune intervention manuelle (15 min 02 s), et redémarrage à froid (4 min 14 s)
+  - [x] Documentation finale
 
 ## Journal de bord
 
@@ -1284,13 +1307,66 @@ k8s-worker-02  : ok=36   changed=0    unreachable=0    failed=0    skipped=8
 
 Exactement les mêmes compteurs qu'avant la destruction.
 
-#### Bilan provisoire
+#### La seconde reconstruction : aucune intervention
 
-- Le lab se reconstruit depuis le dépôt en **15 min 29 s**, application comprise, sans aucun `kubectl apply`.
-- La reconstruction a demandé **une** intervention manuelle, une relance du playbook. Elle est corrigée, et la correction a été testée.
-- Le script de vérification a montré son utilité dès son premier lancement, en repérant une dégradation que rien ne laissait voir côté utilisateur.
+Avec la correction publiée, j'ai refait la même séquence, en lançant cette fois le playbook **immédiatement** après le script des clés, pour me remettre dans les conditions de l'incident :
 
-**Prochaine étape :** une seconde reconstruction, qui doit passer d'un seul tenant, sans aucune intervention, puis un redémarrage à froid chronométré, pour savoir si le proxy Envoy indisponible se reproduit.
+| Étape | Horaires | Durée |
+|---|---|---|
+| `vagrant destroy -f` | 16:45:45 → 16:47:30 | 1 min 45 s |
+| `vagrant up` | 16:47:41 → 16:51:15 | 3 min 34 s |
+| Clés, puis playbook | 16:51:27 → 17:02:11 | 10 min 44 s, dont 10 min 29 s pour le playbook, **en un seul passage** |
+| `verifier-lab.sh` | 17:02:41 → 17:02:43 | 2 s : tout était déjà prêt |
+
+**15 min 02 s** entre le lancement de `vagrant up` et « Tout est opérationnel », **sans aucune intervention**.
+
+```
+k8s-cp-01      : ok=112  changed=52   unreachable=0    failed=0    skipped=4
+k8s-worker-01  : ok=45   changed=29   unreachable=0    failed=0    skipped=3
+k8s-worker-02  : ok=44   changed=28   unreachable=0    failed=0    skipped=3
+```
+
+`unreachable=0` partout, et les deux workers ont désormais le même nombre de changements (29 et 28 : le jeton d'amorçage, créé une seule fois, est compté pour le premier). La nouvelle tâche « Attendre la connexion SSH à chaque nœud » a duré **12 secondes**, alors qu'elle passe en une ou deux secondes quand les nœuds répondent : un nœud au moins n'était pas encore joignable. Sans elle, ce passage aurait échoué comme le premier. Le correctif a donc servi, dans les conditions exactes de l'incident.
+
+Le playbook a pris une minute de plus que lors de la première reconstruction : l'installation des paquets (50 s au lieu de 27 s) et celle de containerd (33 s au lieu de 15 s) dépendent de la vitesse des dépôts de paquets au moment du téléchargement. L'attente de Calico reste la plus longue (4 min 30 s, 43 % du playbook).
+
+L'idempotence est conservée, avec un `ok` de plus par nœud, celui de la nouvelle tâche :
+
+```
+k8s-cp-01      : ok=97   changed=0    unreachable=0    failed=0    skipped=17
+k8s-worker-01  : ok=37   changed=0    unreachable=0    failed=0    skipped=9
+k8s-worker-02  : ok=37   changed=0    unreachable=0    failed=0    skipped=8
+```
+
+#### Le redémarrage à froid
+
+Pour savoir si le proxy Envoy indisponible de la mesure de référence se reproduisait, j'ai arrêté toutes les VMs (`vagrant halt`), attendu une minute, puis les ai relancées (`vagrant up`), de 17:04:47 à 17:11:55. Aucun playbook : containerd et le kubelet redémarrent avec les VMs, et Kubernetes relance lui-même les pods.
+
+```
+$ ./scripts/verifier-lab.sh
+Vérification du lab (17:12:18, délai maximal : 600 s)
+  ...
+  OK     Envoy Gateway (envoy-gateway-system) : 2 composant(s) prêt(s)
+  ...
+  OK     Dernier commit appliqué : edbff9a, main sur GitHub
+  OK     Route http://argocd.lab.internal : HTTP 200
+  OK     Route http://whoami.lab.internal : HTTP 200
+
+Tout est opérationnel à 17:16:09 (vérifié en 231 s).
+```
+
+Le lab est revenu de lui-même, **4 min 14 s** après la fin de `vagrant up`, application comprise. L'incident du proxy Envoy ne s'est pas reproduit. La différence avec la mesure de référence tient à la durée de l'arrêt : une minute ici, une nuit la veille. Sa cause reste non établie, et le script la détecterait si elle revenait.
+
+#### Validation
+
+- Le dépôt suffit à reconstruire le lab : **15 min 02 s** depuis zéro, application comprise, **sans aucune intervention manuelle**, ni `kubectl apply`.
+- Le cluster reconstruit est identique à l'ancien, jusqu'à l'empreinte du ReplicaSet de l'application.
+- Après un redémarrage à froid, le lab revient seul en un peu plus de 4 minutes.
+- Le playbook reste idempotent après reconstruction.
+- La seule intervention manuelle de la première reconstruction a été corrigée, et la seconde reconstruction a montré que la correction servait.
+- Le script de vérification rend chaque essai mesurable, et il a repéré une dégradation que rien ne laissait voir côté utilisateur.
+
+**Le projet est terminé.** Les suites possibles sont listées dans les [pistes d'évolution](#pistes-dévolution).
 
 ---
 
@@ -1335,6 +1411,6 @@ Exactement les mêmes compteurs qu'avant la destruction.
 - Adoption sans interruption d'objets existants par Argo CD, et vérification de la chaîne de bout en bout (commit appliqué identique au dernier commit, autocorrection, retour arrière par `git revert`)
 - Application côté serveur et gestionnaires de champs (`managedFields`) pour faire cohabiter, dans les mêmes objets, les réglages du manifeste officiel et ceux du projet
 - Choix argumenté de la méthode d'installation de chaque composant (une seule fois ou déclarative) selon le comportement de ses contrôleurs et sa procédure de mise à jour
-- Test de reproductibilité : destruction et reconstruction complètes depuis le dépôt, chronométrées, avec analyse du temps passé tâche par tâche (`ansible.posix.profile_tasks`)
+- Test de reproductibilité : destruction et reconstruction complètes depuis le dépôt, chronométrées (15 min 02 s, sans intervention), redémarrage à froid (4 min 14 s), analyse du temps passé tâche par tâche (`ansible.posix.profile_tasks`), et correction de la seule intervention manuelle (`wait_for_connection`), validée par une seconde reconstruction
 - Script de vérification de bout en bout (`verifier-lab.sh`, contrôlé par `shellcheck`), qui a détecté une dégradation invisible côté utilisateur, et testé sur des états sains, en panne et en cours de rétablissement
 - Audit d'un dépôt avant publication et reconstruction : secret affiché dans les journaux (`no_log`), qualité (`ansible-lint`), droits d'exécution enregistrés dans Git, règles d'édition communes (`.editorconfig`)
